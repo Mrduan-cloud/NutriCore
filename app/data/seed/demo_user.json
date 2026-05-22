@@ -1,0 +1,13 @@
+{
+  "user_id": "demo-001",
+  "age": 32,
+  "gender": "male",
+  "height_cm": 175,
+  "weight_kg": 78,
+  "chronic_diseases": ["高血压"],
+  "allergies": ["花生"],
+  "diet_preferences": ["清淡", "低钠"],
+  "budget_per_day": 60,
+  "pregnancy": false,
+  "medications": []
+}
