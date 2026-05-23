@@ -1,6 +1,6 @@
 """数据洞察对外入口 — 优先调 Dify Workflow，未配置时本地走 NL2SQL + ECharts 兜底。
 
-这样面试演示时即便没部署 Dify，整条链路也能跑通。
+这样在未部署 Dify 的环境（CI / 本地 / 离线私有化）整条链路依然能跑通。
 """
 from __future__ import annotations
 
@@ -53,4 +53,4 @@ async def run_workflow(question: str, user_id: str) -> dict[str, Any]:
             return data
         except Exception as e:  # noqa: BLE001
             logger.warning("dify failed, fallback to local: {}", e)
-    return await _local_fallback(question, user_id)
+    return await _local_f
