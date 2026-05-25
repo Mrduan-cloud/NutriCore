@@ -111,17 +111,25 @@ async def subagent_dispatcher(state: dict[str, Any]) -> dict[str, Any]:
             logger.exception("data_insight failed")
             return {"final_answer": f"数据查询失败：{e}"}
 
-    return {}
+    # 未知子 Agent (理论上不可达 —— _route 已经在前面短路掉 sub=None)
+    return {"final_answer": f"未配置的子 Agent: {sub!r}"}
 
 
 async def tool_executor(state: dict[str, Any]) -> dict[str, Any]:
+    """工具调用审计 — 把 dispatcher 写入的 tool_calls 落审计日志。
+
+    本节点目前是 audit-only(真实工具执行已由 dispatcher 完成),
+    但仍必须返回非空 patch,否则 LangGraph 会抛 InvalidUpdateError
+    (要求节点至少写入一个 schema 字段)—— 这里回写 tool_calls 自身作为 noop。
+    """
     user_id = state.get("user_id", "anonymous")
     rid = state.get("request_id", "-")
-    for call in state.get("tool_calls", []) or []:
+    tool_calls = state.get("tool_calls", []) or []
+    for call in tool_calls:
         logger.bind(audit=True, request_id=rid, user_id=user_id).info(
             "tool_call name={}", call.get("tool")
         )
-    return {}
+    return {"tool_calls": tool_calls}
 
 
 async def citation_validator(state: dict[str, Any]) -> dict[str, Any]:
@@ -141,14 +149,21 @@ async def safety_fallback(state: dict[str, Any]) -> dict[str, Any]:
 
 
 async def memory_node(state: dict[str, Any]) -> dict[str, Any]:
+    """从用户消息抽取画像字段并增量合入 user_profile。
+
+    抽取失败 / 无新字段时,仍要返回带 user_profile 的 patch
+    (LangGraph 节点不能返回空 dict —— 会抛 InvalidUpdateError)。
+    """
+    existing = state.get("user_profile", {})
     last_msg = _last_user_text(state)
     increment = await extract_entities(last_msg)
     if increment:
         merged = await merge_profile(
-            state.get("user_profile", {}), increment, user_id=state.get("user_id", "")
+            existing, increment, user_id=state.get("user_id", "")
         )
         return {"user_profile": merged}
-    return {}
+    # noop:回写既有 profile 满足 channel 写入要求
+    return {"user_profile": existing}
 
 
 def _collect_citations(plan: dict) -> list[str]:
