@@ -25,6 +25,12 @@ INTENT_TO_AGENT = {
     "consult": None,
 }
 
+# 用户可见的兜底文案 —— 不要泄漏 stacktrace / 内部组件名
+_SUBAGENT_FAILURE_MESSAGES = {
+    "meal_plan": "营养方案暂时不可用,稍后再试。如反复出现请联系管理员。",
+    "data_insight": "健康数据查询暂时不可用,稍后再试。如反复出现请联系管理员。",
+}
+
 
 def _is_high_risk(text: str) -> bool:
     return any(k in text for k in HIGH_RISK_KEYWORDS)
@@ -63,12 +69,19 @@ async def intent_router(state: dict[str, Any]) -> dict[str, Any]:
             temperature=0.0,
             max_tokens=200,
         )
-        intent = _extract_json(raw).get("intent", "consult")
+        raw_intent = _extract_json(raw).get("intent", "consult")
     except Exception as e:  # noqa: BLE001
         logger.warning("intent classify failed, fallback to consult: {}", e)
-        intent = "consult"
+        raw_intent = "consult"
 
-    sub = INTENT_TO_AGENT.get(intent)
+    # 白名单收敛 —— 防止恶意/异常 LLM 输出污染:
+    # 1. Prometheus label cardinality(防 series 爆炸 OOM)
+    # 2. state["intent"] 后续可能在审计 / 前端显示场景被使用
+    intent = raw_intent if raw_intent in INTENT_TO_AGENT else "consult"
+    if intent != raw_intent:
+        logger.warning("intent '{}' not in whitelist, coerced to consult", raw_intent)
+
+    sub = INTENT_TO_AGENT[intent]
     agent_invocations.labels(agent="intent_router", outcome=intent).inc()
     return {"intent": intent, "selected_subagent": sub, "is_high_risk": False}
 
@@ -94,9 +107,13 @@ async def subagent_dispatcher(state: dict[str, Any]) -> dict[str, Any]:
                 "tool_calls": [{"tool": "meal_plan.generate"}],
                 "citations": _collect_citations(plan),
             }
-        except Exception as e:  # noqa: BLE001
-            logger.exception("meal_plan failed")
-            return {"final_answer": f"方案生成失败：{e}"}
+        except Exception:  # noqa: BLE001
+            # log 完整 stacktrace + request_id 便于排障;不要泄漏给用户
+            logger.bind(request_id=state.get("request_id", "-"), user_id=user_id).exception(
+                "meal_plan generation failed"
+            )
+            agent_invocations.labels(agent="subagent_dispatcher", outcome="meal_plan_error").inc()
+            return {"final_answer": _SUBAGENT_FAILURE_MESSAGES["meal_plan"]}
 
     if sub == "data_insight":
         from app.agents.data_insight.dify_client import run_workflow
@@ -107,9 +124,12 @@ async def subagent_dispatcher(state: dict[str, Any]) -> dict[str, Any]:
                 "tool_calls": [{"tool": "data_insight.query"}],
                 "extra": {"insight": result},
             }
-        except Exception as e:  # noqa: BLE001
-            logger.exception("data_insight failed")
-            return {"final_answer": f"数据查询失败：{e}"}
+        except Exception:  # noqa: BLE001
+            logger.bind(request_id=state.get("request_id", "-"), user_id=user_id).exception(
+                "data_insight workflow failed"
+            )
+            agent_invocations.labels(agent="subagent_dispatcher", outcome="insight_error").inc()
+            return {"final_answer": _SUBAGENT_FAILURE_MESSAGES["data_insight"]}
 
     # 未知子 Agent (理论上不可达 —— _route 已经在前面短路掉 sub=None)
     return {"final_answer": f"未配置的子 Agent: {sub!r}"}

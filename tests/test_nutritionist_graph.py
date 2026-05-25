@@ -11,7 +11,6 @@
 """
 from __future__ import annotations
 
-import sys
 from typing import Any
 
 import pytest
@@ -352,6 +351,98 @@ async def test_memory_node_handles_empty_message_gracefully(monkeypatch):
     # 节点契约要求至少回写一个 schema 字段(LangGraph 不允许空 patch),
     # 因此短路时回写原 profile 作为 noop —— 内容不应被改动
     assert out == {"user_profile": {"age": 28}}
+
+
+# =========================================================================
+# 安全层 — 防 LLM 输出污染 / 内部细节泄漏
+# =========================================================================
+@pytest.mark.asyncio
+async def test_malicious_llm_intent_is_coerced_to_whitelist(patch_chat_complete):
+    """LLM 返回不在白名单的 intent(可能是注入攻击 / 模型漂移)→ 必须被收敛为 consult。
+
+    防御:
+    - state["intent"] 后续用于审计/前端渲染,不能直接写 LLM 输出
+    - Prometheus label cardinality(防 series 爆炸 OOM)
+    """
+
+    async def _malicious_llm(_prompt, **_):
+        # 模拟恶意/异常的 LLM 输出
+        return '{"intent": "<script>alert(1)</script>"}'
+
+    patch_chat_complete(_malicious_llm)
+    g = build_nutritionist_graph()
+
+    final = await g.ainvoke(_make_state("balabala"))
+
+    # intent 字段必须是白名单中的值,不能是 LLM 原始输出
+    assert final["intent"] in nodes.INTENT_TO_AGENT, (
+        f"intent {final['intent']!r} 不在白名单 {set(nodes.INTENT_TO_AGENT.keys())} 内 —— "
+        "Prometheus label cardinality 风险"
+    )
+    # 具体应该被收敛为 consult(默认意图)
+    assert final["intent"] == "consult"
+    assert final.get("selected_subagent") is None
+
+
+@pytest.mark.asyncio
+async def test_meal_plan_exception_details_do_not_leak_to_user(
+    patch_chat_complete, patch_meal_plan
+):
+    """generate_meal_plan 抛错时,final_answer 必须是 generic 文案,不能含 exception 细节。
+
+    防御:不要把 stacktrace / 数据库路径 / 内部组件名漏给用户。
+    """
+
+    async def _llm_stub(_prompt, **_):
+        return '{"intent": "plan"}'
+
+    secret_internal_detail = "milvus_host=10.0.1.42 collection=user_profile_v3 token=sk-abc123"
+
+    async def _boom(*_, **__):
+        raise RuntimeError(secret_internal_detail)
+
+    patch_chat_complete(_llm_stub)
+    patch_meal_plan(_boom)
+
+    g = build_nutritionist_graph()
+    final = await g.ainvoke(_make_state("生成方案"))
+
+    # 链路必须完成(不能让 exception 冒到顶)
+    assert "final_answer" in final
+    # 关键:用户可见文案不能含任何 exception 细节
+    assert secret_internal_detail not in final["final_answer"]
+    assert "10.0.1.42" not in final["final_answer"]
+    assert "milvus" not in final["final_answer"].lower()
+    assert "token" not in final["final_answer"].lower()
+    assert "RuntimeError" not in final["final_answer"]
+    # 应该有用户友好的提示
+    assert "稍后再试" in final["final_answer"] or "暂时不可用" in final["final_answer"]
+
+
+@pytest.mark.asyncio
+async def test_data_insight_exception_details_do_not_leak_to_user(
+    patch_chat_complete, patch_dify_workflow
+):
+    """同上,data_insight 分支也必须做异常脱敏。"""
+
+    async def _llm_stub(_prompt, **_):
+        return '{"intent": "insight"}'
+
+    secret = "dify_api_key=app-secret-xyz dsn=postgres://root:pwd@db:5432/health"
+
+    async def _boom(*_, **__):
+        raise ConnectionError(secret)
+
+    patch_chat_complete(_llm_stub)
+    patch_dify_workflow(_boom)
+
+    g = build_nutritionist_graph()
+    final = await g.ainvoke(_make_state("看一下我的趋势"))
+
+    assert secret not in final["final_answer"]
+    assert "dify_api_key" not in final["final_answer"]
+    assert "postgres" not in final["final_answer"].lower()
+    assert "ConnectionError" not in final["final_answer"]
 
 
 # =========================================================================
