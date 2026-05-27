@@ -47,11 +47,36 @@ def _extract_json(text: str) -> dict:
 
 
 def _last_user_text(state: dict[str, Any]) -> str:
-    for msg in reversed(state.get("messages", [])):
+    """从消息历史中拿出最后一条用户消息的纯文本。
+
+    LangChain 0.3 起 ``HumanMessage.content`` 不再保证是 ``str``:
+    多模态/工具调用形态下,content 可能是 ``list[dict]``,形如::
+
+        [{"type": "text", "text": "..."}, {"type": "image_url", ...}]
+
+    若直接把 list 透传给下游 ``_is_high_risk`` 的 ``"急救" in text`` 检查,
+    会变成"急救"是否是 list 元素 → **永远 False**,导致高风险关键词
+    gate 被静默绕过。所以本函数必须把 ``list[dict]`` 的所有 ``type=text``
+    块抽出来拼成单个字符串。
+    """
+    for msg in reversed(state.get("messages", []) or []):
         content = getattr(msg, "content", None)
         if content is None and isinstance(msg, dict):
             content = msg.get("content")
-        if content:
+        if not content:
+            continue
+        # 多模态形态: list[dict] | list[str]
+        if isinstance(content, list):
+            parts: list[str] = []
+            for part in content:
+                if isinstance(part, dict) and part.get("type") == "text":
+                    text = part.get("text", "")
+                    if isinstance(text, str):
+                        parts.append(text)
+                elif isinstance(part, str):
+                    parts.append(part)
+            content = " ".join(parts).strip()
+        if isinstance(content, str) and content:
             return content
     return ""
 

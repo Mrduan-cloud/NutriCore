@@ -140,6 +140,37 @@ async def test_high_risk_keyword_short_circuits_to_safety_fallback(patch_chat_co
     assert "急" in final["final_answer"] or "就医" in final["final_answer"]
 
 
+@pytest.mark.asyncio
+async def test_high_risk_keyword_works_with_multimodal_content(patch_chat_complete):
+    """LangChain 0.3+ 多模态消息(content=list[dict])下高风险 gate 仍要命中。
+
+    回归测试 —— 防止 ``_last_user_text`` 把 list 透传给 ``"急救" in text``
+    检查导致 gate 被静默绕过(那种情况下 ``"急救" in [{...}, {...}]`` 永远
+    返回 False,简历声明的"高风险问题自动触发建议就医"会失效)。
+    """
+
+    async def _llm_should_not_be_called(_prompt, **_):
+        raise AssertionError("多模态消息携带的高风险关键词应在规则层就被截下")
+
+    patch_chat_complete(_llm_should_not_be_called)
+    g = build_nutritionist_graph()
+
+    state = {
+        "messages": [HumanMessage(content=[
+            {"type": "text", "text": "胸痛厉害,该吃什么"},
+            {"type": "image_url", "image_url": {"url": "fake.jpg"}},
+        ])],
+        "user_id": "u-mm",
+        "user_profile": {},
+    }
+    final = await g.ainvoke(state)
+
+    assert final.get("is_high_risk") is True
+    assert final["intent"] == "risk_alert"
+    # safety_fallback 实际文案使用"建议尽快前往专科医院",与上面 ASCII-safe gate 测试保持一致
+    assert "急" in final["final_answer"] or "医院" in final["final_answer"]
+
+
 # =========================================================================
 # 路由层 — 4 个意图分支
 # =========================================================================
