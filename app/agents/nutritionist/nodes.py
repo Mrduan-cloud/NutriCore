@@ -25,6 +25,30 @@ INTENT_TO_AGENT = {
     "consult": None,
 }
 
+# 规则关键词层 —— 在 LLM 之前做一次低成本短路:
+#   - 命中任意意图的关键词 → 直接返回该意图,跳过 LLM 调用
+#   - 全部 miss → 回退到 LLM 分类
+#
+# 设计取舍:
+#   - 仅收录"高置信"短语(如"NRS2002""七天食谱"这种几乎不会指向其他意图的)
+#   - 避免引入"减肥""体重"这种模棱两可的词(它们可能属于 plan / consult / insight 任一)
+#   - 关键词是大小写不敏感 + 全角半角宽容(NFKC 归一化)
+#   - 任何关键词都必须仍然落在 INTENT_TO_AGENT 白名单内 —— 防止规则配置错误偷偷写出 unknown intent
+INTENT_KEYWORDS: dict[str, tuple[str, ...]] = {
+    "screening": (
+        "营养风险筛查", "营养筛查", "NRS2002", "NRS-2002",
+        "营养风险评估", "营养评估问卷",
+    ),
+    "plan": (
+        "膳食计划", "膳食方案", "7天食谱", "七天食谱", "一周食谱",
+        "营养方案", "减脂方案", "增肌方案", "控糖方案",
+    ),
+    "insight": (
+        "近30天", "近 30 天", "近三十天", "过去一个月", "过去三个月",
+        "近一周趋势", "蛋白质达标", "体重趋势", "睡眠趋势", "数据洞察",
+    ),
+}
+
 # 用户可见的兜底文案 —— 不要泄漏 stacktrace / 内部组件名
 _SUBAGENT_FAILURE_MESSAGES = {
     "meal_plan": "营养方案暂时不可用,稍后再试。如反复出现请联系管理员。",
@@ -34,6 +58,30 @@ _SUBAGENT_FAILURE_MESSAGES = {
 
 def _is_high_risk(text: str) -> bool:
     return any(k in text for k in HIGH_RISK_KEYWORDS)
+
+
+def _classify_by_rules(text: str) -> str | None:
+    """规则关键词分类。返回命中的意图(必在 INTENT_TO_AGENT 内)或 None。
+
+    匹配策略:
+    - 全角/半角 + 大小写不敏感(NFKC 归一化 + lower)
+    - 任意意图的任意关键词命中即返回该意图
+    - 多意图同时命中时,按 INTENT_KEYWORDS 字典顺序优先(screening > plan > insight)
+      理由:这三个意图都对应"操作型"业务,优先级反映"用户决心更强"的方向
+    """
+    import unicodedata
+
+    normalized = unicodedata.normalize("NFKC", text or "").lower()
+    if not normalized:
+        return None
+    for intent, keywords in INTENT_KEYWORDS.items():
+        if intent not in INTENT_TO_AGENT:
+            # 配置自检:规则表写错也不能让未知意图泄出
+            continue
+        for kw in keywords:
+            if unicodedata.normalize("NFKC", kw).lower() in normalized:
+                return intent
+    return None
 
 
 def _extract_json(text: str) -> dict:
@@ -82,11 +130,36 @@ def _last_user_text(state: dict[str, Any]) -> str:
 
 
 async def intent_router(state: dict[str, Any]) -> dict[str, Any]:
+    """三层意图分类:高风险 gate → 规则关键词 → LLM 兜底。
+
+    优先级与短路:
+    1. **高风险关键词** (急救/胸痛/孕产期 ...) → 立即返回 risk_alert,
+       不调 LLM、不调子 Agent。这是安全 gate,必须最先判定。
+    2. **规则关键词分类** (INTENT_KEYWORDS) → 命中即返回对应意图,
+       绕过 LLM。节省一次 ~200ms / ~150 token 的 LLM 调用,
+       对高频固定句式(e.g. "做个 NRS2002 筛查")延迟显著下降。
+    3. **LLM 兜底分类** → 规则未命中时调用 chat_complete + 白名单收敛。
+
+    Metric label outcome 一律落在 INTENT_TO_AGENT 白名单内,防 cardinality 爆炸。
+    """
     last_msg = _last_user_text(state)
+
+    # ---- 第 1 层:高风险 gate ----
     if _is_high_risk(last_msg):
         agent_invocations.labels(agent="intent_router", outcome="high_risk").inc()
         return {"intent": "risk_alert", "selected_subagent": None, "is_high_risk": True}
 
+    # ---- 第 2 层:规则关键词分类 ----
+    rule_intent = _classify_by_rules(last_msg)
+    if rule_intent is not None:
+        # 规则结果走和 LLM 一样的白名单收敛 + metric 路径
+        intent = rule_intent if rule_intent in INTENT_TO_AGENT else "consult"
+        sub = INTENT_TO_AGENT[intent]
+        agent_invocations.labels(agent="intent_router", outcome=f"rule:{intent}").inc()
+        logger.debug("intent_router rule-hit -> {}", intent)
+        return {"intent": intent, "selected_subagent": sub, "is_high_risk": False}
+
+    # ---- 第 3 层:LLM 兜底 ----
     try:
         raw = await chat_complete(
             INTENT_PROMPT.format(user_message=last_msg),
@@ -107,7 +180,7 @@ async def intent_router(state: dict[str, Any]) -> dict[str, Any]:
         logger.warning("intent '{}' not in whitelist, coerced to consult", raw_intent)
 
     sub = INTENT_TO_AGENT[intent]
-    agent_invocations.labels(agent="intent_router", outcome=intent).inc()
+    agent_invocations.labels(agent="intent_router", outcome=f"llm:{intent}").inc()
     return {"intent": intent, "selected_subagent": sub, "is_high_risk": False}
 
 

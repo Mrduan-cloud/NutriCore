@@ -477,6 +477,101 @@ async def test_data_insight_exception_details_do_not_leak_to_user(
 
 
 # =========================================================================
+# 规则分类层 — LLM 之前的关键词短路
+# =========================================================================
+@pytest.fixture
+def llm_must_not_be_called(monkeypatch):
+    """断言式 stub:任何 chat_complete 调用都立即让测试失败。
+
+    专门用来证明 "规则层命中后真的没走 LLM",而不只是 "最终意图正确"。
+    """
+    async def _boom(_prompt, **_):
+        raise AssertionError(
+            "intent_router 在规则命中后不应再调用 chat_complete —— "
+            "若触发此异常,说明规则层短路失败,LLM 兜底被白白触发了。"
+        )
+
+    monkeypatch.setattr(nodes, "chat_complete", _boom, raising=True)
+    # memory_node 也用同一个 chat_complete (经 extract_entities),
+    # 测试里只检 intent_router 行为,所以同时屏蔽 memory 的 LLM 调用 —— 用普通 stub 返回 {}
+    from app.agents.nutritionist import memory as memory_mod
+
+    async def _empty(_prompt, **_):
+        return "{}"
+    monkeypatch.setattr(memory_mod, "chat_complete", _empty, raising=True)
+
+
+@pytest.mark.asyncio
+async def test_rule_layer_screening_keyword_bypasses_llm(llm_must_not_be_called):
+    """规则命中 "营养风险筛查" → 不调 LLM,直接路由到 risk_screening。"""
+    g = build_nutritionist_graph()
+    final = await g.ainvoke(_make_state("帮我做个营养风险筛查"))
+    assert final["intent"] == "screening"
+    assert final["selected_subagent"] == "risk_screening"
+
+
+@pytest.mark.asyncio
+async def test_rule_layer_plan_keyword_bypasses_llm(llm_must_not_be_called):
+    """规则命中 "减脂方案" → 不调 LLM,直接路由到 meal_plan。"""
+    # patch_meal_plan 不在这里 fixture,所以方案生成会进 exception 分支
+    # 我们关心的是 intent 决策,exception 后的 final_answer 是 fallback 文案 —— 这正是设计
+    g = build_nutritionist_graph()
+    final = await g.ainvoke(_make_state("我想要一份减脂方案"))
+    assert final["intent"] == "plan"
+    assert final["selected_subagent"] == "meal_plan"
+
+
+@pytest.mark.asyncio
+async def test_rule_layer_insight_keyword_bypasses_llm(llm_must_not_be_called):
+    """规则命中 "蛋白质达标" → 不调 LLM,直接路由到 data_insight。"""
+    g = build_nutritionist_graph()
+    final = await g.ainvoke(_make_state("我最近的蛋白质达标情况怎么样"))
+    assert final["intent"] == "insight"
+    assert final["selected_subagent"] == "data_insight"
+
+
+@pytest.mark.asyncio
+async def test_rule_layer_handles_full_width_digits(llm_must_not_be_called):
+    """全角数字 "近３０天" 也应被 NFKC 归一化后命中 "近30天"。"""
+    g = build_nutritionist_graph()
+    final = await g.ainvoke(_make_state("看看我近３０天的睡眠情况"))
+    assert final["intent"] == "insight"
+
+
+@pytest.mark.asyncio
+async def test_rule_layer_misses_falls_through_to_llm(patch_chat_complete):
+    """非关键词命中的普通咨询应走到 LLM 兜底(LLM 是确实被调用的)。"""
+    called = {"count": 0}
+
+    async def _llm_stub(_prompt, **_):
+        called["count"] += 1
+        return '{"intent": "consult"}'
+
+    patch_chat_complete(_llm_stub)
+    g = build_nutritionist_graph()
+    final = await g.ainvoke(_make_state("低 GI 主食一般有哪些好选择?"))
+    assert final["intent"] == "consult"
+    # 至少调用一次:intent_router LLM 兜底;memory_node 因消息长度 ok 也会调一次
+    assert called["count"] >= 1
+
+
+def test_intent_keywords_only_reference_whitelisted_intents():
+    """规则表 INTENT_KEYWORDS 的所有 key 必须落在 INTENT_TO_AGENT 白名单内。
+
+    防御:防止规则表配错让"unknown intent"绕过白名单泄到 state / metric。
+    """
+    bad = set(nodes.INTENT_KEYWORDS.keys()) - set(nodes.INTENT_TO_AGENT.keys())
+    assert not bad, f"INTENT_KEYWORDS 含未授权意图: {bad}"
+
+
+def test_classify_by_rules_returns_none_on_empty_or_no_match():
+    """空消息 / 无关键词 → 返回 None,让上层走 LLM。"""
+    assert nodes._classify_by_rules("") is None
+    assert nodes._classify_by_rules("   ") is None
+    assert nodes._classify_by_rules("今天天气真好") is None
+
+
+# =========================================================================
 # 契约层 — INTENT_TO_AGENT 必须覆盖 INTENT_PROMPT 声明的所有类别
 # =========================================================================
 def test_intent_to_agent_map_covers_all_documented_intents():
