@@ -4,10 +4,17 @@ import axios from "axios";
 
 const TOKEN_KEY = "nutricore_token";
 const USER_KEY = "nutricore_user";
+const AVATAR_KEY = "nutricore_avatar_style";
 
 export const useAuthStore = defineStore("auth", () => {
   const token = ref<string>(localStorage.getItem(TOKEN_KEY) || "");
   const userId = ref<string>(localStorage.getItem(USER_KEY) || "");
+  const avatarStyle = ref<string>(localStorage.getItem(AVATAR_KEY) || "avataaars");
+
+  function setAvatarStyle(style: string) {
+    avatarStyle.value = style;
+    localStorage.setItem(AVATAR_KEY, style);
+  }
 
   async function login(username: string, password: string) {
     // 登录用裸 axios(此时还没 token,也避免拦截器循环依赖)
@@ -25,5 +32,5 @@ export const useAuthStore = defineStore("auth", () => {
     localStorage.removeItem(USER_KEY);
   }
 
-  return { token, userId, login, logout };
+  return { token, userId, avatarStyle, setAvatarStyle, login, logout };
 });

@@ -9,6 +9,7 @@ import {
   NSpin,
   NAvatar,
   NPopconfirm,
+  NModal,
 } from "naive-ui";
 import MarkdownIt from "markdown-it";
 import { useAuthStore } from "@/stores/auth";
@@ -44,12 +45,29 @@ const input = ref("");
 const loading = ref(false);
 const listRef = ref<HTMLElement | null>(null);
 
-const userAvatar = computed(
-  () =>
-    `https://api.dicebear.com/9.x/avataaars/svg?seed=${encodeURIComponent(
-      auth.userId || "demo",
-    )}&backgroundColor=b6e3f4,c0aede,ffd5dc`,
-);
+// 头像:DiceBear,风格可切换(存 auth store / localStorage)
+const AVATAR_STYLES = [
+  "avataaars",
+  "adventurer",
+  "fun-emoji",
+  "thumbs",
+  "bottts",
+  "notionists",
+  "lorelei",
+  "micah",
+];
+function avatarUrl(style: string): string {
+  return `https://api.dicebear.com/9.x/${style}/svg?seed=${encodeURIComponent(
+    auth.userId || "demo",
+  )}&backgroundColor=b6e3f4,c0aede,ffd5dc`;
+}
+const userAvatar = computed(() => avatarUrl(auth.avatarStyle));
+
+const showAvatarPicker = ref(false);
+function pickAvatar(style: string) {
+  auth.setAvatarStyle(style);
+  showAvatarPicker.value = false;
+}
 
 // 当前会话的消息(响应式指向 store 里 active 会话)
 const messages = computed<ChatMessage[]>(() => convStore.active().messages);
@@ -209,7 +227,15 @@ function onLogout() {
       </div>
 
       <div class="side-user">
-        <n-avatar round :size="30" :src="userAvatar" color="#e8eef0" />
+        <n-avatar
+          round
+          :size="30"
+          :src="userAvatar"
+          color="#e8eef0"
+          class="clickable-avatar"
+          title="点击更换头像"
+          @click="showAvatarPicker = true"
+        />
         <span class="uid">{{ auth.userId }}</span>
         <n-popconfirm @positive-click="onLogout">
           <template #trigger>
@@ -260,6 +286,16 @@ function onLogout() {
               <span class="cites-label">📚 依据来源</span>
               <span v-for="c in prettyCitations(m.citations)" :key="c" class="cite">{{ c }}</span>
             </div>
+            <!-- 无知识库引用的回答 = 通用 LLM 生成,加免责声明 -->
+            <div
+              v-else-if="m.role === 'assistant' && m.content && !m.isHighRisk"
+              class="disclaimer"
+            >
+              <span class="disclaimer-icon">💡</span>
+              <span class="disclaimer-text">
+                <b>AI 生成内容</b>,基于通用营养学知识、未匹配知识库依据,仅供参考。涉及健康决策请咨询专业营养师或医生。
+              </span>
+            </div>
           </div>
           <n-avatar v-if="m.role === 'user'" round class="avatar" :src="userAvatar" color="#e8eef0" />
         </div>
@@ -279,6 +315,21 @@ function onLogout() {
         </n-button>
       </footer>
     </div>
+
+    <!-- 头像选择器 -->
+    <n-modal v-model:show="showAvatarPicker" preset="card" title="选择头像" style="width: 460px">
+      <div class="avatar-grid">
+        <div
+          v-for="st in AVATAR_STYLES"
+          :key="st"
+          class="avatar-option"
+          :class="{ active: st === auth.avatarStyle }"
+          @click="pickAvatar(st)"
+        >
+          <img :src="avatarUrl(st)" :alt="st" />
+        </div>
+      </div>
+    </n-modal>
   </div>
 </template>
 
@@ -571,6 +622,62 @@ function onLogout() {
   border: 1px solid #d6e9e7;
   border-radius: 6px;
   padding: 2px 8px;
+}
+.disclaimer {
+  margin-top: 12px;
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  padding: 8px 11px;
+  background: #fffaf0;
+  border: 1px solid #ffe6b0;
+  border-radius: 9px;
+  font-size: 12px;
+  line-height: 1.55;
+  color: #946a00;
+}
+.disclaimer-icon {
+  flex-shrink: 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.disclaimer-text b {
+  color: #7a5600;
+  font-weight: 700;
+}
+
+/* 头像可点 + 选择器网格 */
+.clickable-avatar {
+  cursor: pointer;
+  transition: transform 0.12s;
+}
+.clickable-avatar:hover {
+  transform: scale(1.08);
+}
+.avatar-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+.avatar-option {
+  border: 2px solid transparent;
+  border-radius: 12px;
+  padding: 4px;
+  cursor: pointer;
+  transition: all 0.12s;
+  background: #f3f5f7;
+}
+.avatar-option:hover {
+  border-color: #9ad;
+}
+.avatar-option.active {
+  border-color: #2f8b89;
+  background: #eef6f5;
+}
+.avatar-option img {
+  width: 100%;
+  display: block;
+  border-radius: 8px;
 }
 
 .composer {
