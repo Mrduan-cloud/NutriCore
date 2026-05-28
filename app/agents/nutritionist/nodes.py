@@ -453,15 +453,33 @@ def _format_meal_plan_md(plan: dict) -> str:
 
 
 def _format_insight_md(result: dict) -> str:
-    """把数据洞察结果渲染成对话内 Markdown 摘要。"""
+    """把数据洞察结果渲染成对话内 Markdown 摘要。
+
+    本地兜底链路(nl2sql + echarts)产出的结构:
+        {"sql","rows","echarts_option",
+         "insight":{overview/findings/alerts/actions},"source"}
+    Dify 直出时 insight 可能是整段字符串,这里都兼容。图表本身由前端用
+    echarts_option 单独渲染,这里只出文字解读。
+    """
     if not result:
         return "暂时没有查询到你的健康数据。"
-    summary = result.get("summary") or result.get("insight") or ""
-    lines = ["已基于你的健康数据生成洞察:\n"]
-    if summary:
-        lines.append(str(summary))
-    chart = result.get("chart")
-    if chart:
-        ctype = chart.get("type") if isinstance(chart, dict) else None
-        lines.append(f"\n_(已生成{('「' + str(ctype) + '」' ) if ctype else ''}可视化图表数据)_")
-    return "\n".join(lines)
+    rows = result.get("rows") or []
+    insight = result.get("insight")
+    head = (
+        f"已基于你近 **{len(rows)} 天**的健康数据生成洞察:"
+        if rows
+        else "已为你生成健康数据洞察:"
+    )
+    if isinstance(insight, dict):
+        seg = [
+            ("概况", insight.get("overview")),
+            ("关键发现", insight.get("findings")),
+            ("异常预警", insight.get("alerts")),
+            ("行动建议", insight.get("actions")),
+        ]
+        body = "\n\n".join(f"**{name}**:{val}" for name, val in seg if val)
+    else:
+        body = str(insight or "").strip()
+    if not rows:
+        body = body or "该时段暂无健康数据。可以先坚持每日记录,过段时间再来复盘。"
+    return f"{head}\n\n{body}" if body else head

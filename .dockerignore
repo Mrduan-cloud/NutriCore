@@ -1,0 +1,35 @@
+# 前端独立构建,不进后端镜像(否则 node_modules 把构建上下文撑爆)
+frontend/
+
+# 机密:运行时由 compose 的 env_file 注入,不要 COPY 进镜像层
+.env
+.env.*
+!.env.example
+
+# 版本控制 / IDE
+.git/
+.gitignore
+.idea/
+.vscode/
+
+# Python 缓存与虚拟环境
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.egg-info/
+
+# 数据与模型产物
+data/raw/
+data/processed/
+models/
+checkpoints/
+*.log
+.cache/
+
+# OS
+.DS_Store
+Thumbs.db

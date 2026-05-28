@@ -132,9 +132,16 @@ async def chat_stream(
                 for piece in _chunks(out.get("final_answer", "")):
                     yield _sse({"type": "delta", "content": piece})
                 used = [c.get("tool") for c in out.get("tool_calls") or [] if c.get("tool")]
-                yield _sse(
-                    {"type": "done", "citations": out.get("citations") or [], "used_tools": used}
-                )
+                done = {
+                    "type": "done",
+                    "citations": out.get("citations") or [],
+                    "used_tools": used,
+                }
+                # 数据洞察:把 ECharts 配置随 done 事件下发,前端渲染图表
+                chart = ((out.get("extra") or {}).get("insight") or {}).get("echarts_option")
+                if isinstance(chart, dict) and not chart.get("noData"):
+                    done["chart"] = chart
+                yield _sse(done)
                 return
 
             # 4. consult → RAG 检索接地 + 真·逐 token 流式

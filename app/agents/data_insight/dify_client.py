@@ -53,4 +53,4 @@ async def run_workflow(question: str, user_id: str) -> dict[str, Any]:
             return data
         except Exception as e:  # noqa: BLE001
             logger.warning("dify failed, fallback to local: {}", e)
-    return await _local_f
+    return await _local_fallback(question, user_id)
