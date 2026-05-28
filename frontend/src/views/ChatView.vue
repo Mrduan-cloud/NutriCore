@@ -271,7 +271,7 @@ function onLogout() {
         <span class="uid">{{ auth.userId }}</span>
         <n-popconfirm @positive-click="onLogout">
           <template #trigger>
-            <n-button size="tiny" quaternary>退出</n-button>
+            <button type="button" class="logout-btn">退出</button>
           </template>
           确定退出登录?
         </n-popconfirm>
@@ -485,6 +485,22 @@ function onLogout() {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+/* 退出按钮:深色侧栏上必须自带浅色描边,否则默认深色文字暗对暗看不见 */
+.logout-btn {
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  color: #e6f4f3;
+  font-size: 12px;
+  padding: 4px 11px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.logout-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.5);
 }
 
 /* ===== 主对话 ===== */
