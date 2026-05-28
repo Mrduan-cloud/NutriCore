@@ -1,5 +1,6 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
+import { useAuthStore } from "@/stores/auth";
 
 export interface ChatMessage {
   role: "user" | "assistant";
@@ -19,22 +20,27 @@ export interface Conversation {
   createdAt: number;
 }
 
-const KEY = "nutricore_conversations";
+// 会话历史按用户隔离:localStorage key 带 user_id 后缀,切换账号互不串扰。
+const PREFIX = "nutricore_conversations_";
+function keyFor(uid: string): string {
+  return PREFIX + (uid || "anon");
+}
 
-function load(): Conversation[] {
+function load(uid: string): Conversation[] {
   try {
-    return JSON.parse(localStorage.getItem(KEY) || "[]");
+    return JSON.parse(localStorage.getItem(keyFor(uid)) || "[]");
   } catch {
     return [];
   }
 }
 
-function persist(list: Conversation[]) {
-  localStorage.setItem(KEY, JSON.stringify(list));
+function persist(uid: string, list: Conversation[]) {
+  localStorage.setItem(keyFor(uid), JSON.stringify(list));
 }
 
 export const useConversationStore = defineStore("conversations", () => {
-  const list = ref<Conversation[]>(load());
+  const auth = useAuthStore();
+  const list = ref<Conversation[]>(load(auth.userId));
   const activeId = ref<string>("");
 
   function newConversation(): Conversation {
@@ -46,7 +52,7 @@ export const useConversationStore = defineStore("conversations", () => {
     };
     list.value.unshift(conv);
     activeId.value = conv.id;
-    persist(list.value);
+    persist(auth.userId, list.value);
     return conv;
   }
 
@@ -64,7 +70,7 @@ export const useConversationStore = defineStore("conversations", () => {
   function remove(id: string) {
     list.value = list.value.filter((c) => c.id !== id);
     if (activeId.value === id) activeId.value = list.value[0]?.id || "";
-    persist(list.value);
+    persist(auth.userId, list.value);
   }
 
   function save() {
@@ -74,8 +80,14 @@ export const useConversationStore = defineStore("conversations", () => {
       const firstUser = conv.messages.find((m) => m.role === "user");
       if (firstUser) conv.title = firstUser.content.slice(0, 18);
     }
-    persist(list.value);
+    persist(auth.userId, list.value);
   }
 
-  return { list, activeId, newConversation, active, select, remove, save };
+  // 切换账号后重新载入当前用户的会话(在进入聊天页时调用)
+  function reload() {
+    list.value = load(auth.userId);
+    activeId.value = list.value[0]?.id || "";
+  }
+
+  return { list, activeId, newConversation, active, select, remove, save, reload };
 });

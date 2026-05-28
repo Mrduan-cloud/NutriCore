@@ -119,6 +119,8 @@ const intentLabel: Record<string, string> = {
 };
 
 onMounted(() => {
+  // 按当前登录用户重载会话(切换账号后不串历史)
+  convStore.reload();
   if (convStore.list.length === 0) convStore.newConversation();
   else convStore.active();
 });
