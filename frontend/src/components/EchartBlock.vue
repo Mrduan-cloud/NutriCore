@@ -7,6 +7,7 @@ const props = defineProps<{ option: Record<string, any> | null | undefined }>();
 
 const el = ref<HTMLDivElement | null>(null);
 let chart: echarts.ECharts | null = null;
+let ro: ResizeObserver | null = null;
 
 function render() {
   if (!el.value || !props.option) return;
@@ -28,11 +29,19 @@ function onResize() {
 onMounted(async () => {
   await nextTick();
   render();
+  // 回看历史会话时,容器可能在 init 时还没拿到尺寸 → echarts 画成空白。
+  // 用 ResizeObserver 在容器拿到尺寸/变化后补一次 resize,确保图能画出来。
+  if (el.value && "ResizeObserver" in window) {
+    ro = new ResizeObserver(() => chart?.resize());
+    ro.observe(el.value);
+  }
   window.addEventListener("resize", onResize);
 });
 
 onBeforeUnmount(() => {
   window.removeEventListener("resize", onResize);
+  ro?.disconnect();
+  ro = null;
   chart?.dispose();
   chart = null;
 });

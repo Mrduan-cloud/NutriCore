@@ -70,8 +70,13 @@ function pickAvatar(style: string) {
   showAvatarPicker.value = false;
 }
 
-// 当前会话的消息(响应式指向 store 里 active 会话)
-const messages = computed<ChatMessage[]>(() => convStore.active().messages);
+// 当前会话的消息 —— 纯读取,不在 computed 里产生副作用(之前调用 active()
+// 会在渲染期间改写 activeId / 新建会话,可能触发 "Maximum recursive updates" 卡死)。
+const messages = computed<ChatMessage[]>(() => {
+  const conv =
+    convStore.list.find((c) => c.id === convStore.activeId) || convStore.list[0];
+  return conv ? conv.messages : [];
+});
 
 // 4 个子 Agent 的能力入口 —— key 与后端 intent 对齐,点击即发起一句代表性提问,
 // 由后端 intent_router 自动派发到对应子 Agent(答案上会贴意图标签印证路由)。
