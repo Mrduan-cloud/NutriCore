@@ -8,6 +8,8 @@ export interface ChatMessage {
   isHighRisk?: boolean;
   citations?: string[];
   usedTools?: string[];
+  // 数据洞察:后端随 done 事件下发的 ECharts 配置(持久化后可回看重绘)
+  chart?: Record<string, any> | null;
 }
 
 export interface Conversation {

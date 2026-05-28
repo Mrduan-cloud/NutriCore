@@ -14,6 +14,7 @@ import {
 import MarkdownIt from "markdown-it";
 import { useAuthStore } from "@/stores/auth";
 import { useConversationStore, type ChatMessage } from "@/stores/conversations";
+import EchartBlock from "@/components/EchartBlock.vue";
 
 // Markdown 渲染器:html:false 防 XSS,breaks:false 避免单换行变 <br> 撑大间距
 const md = new MarkdownIt({ html: false, linkify: true, breaks: false });
@@ -134,7 +135,7 @@ async function send(text?: string) {
   const conv = convStore.active();
   conv.messages.push({ role: "user", content });
   // 占位 assistant 消息,流式往里填;取回 reactive 代理引用
-  conv.messages.push({ role: "assistant", content: "", citations: [], usedTools: [] });
+  conv.messages.push({ role: "assistant", content: "", citations: [], usedTools: [], chart: null });
   const ai = conv.messages[conv.messages.length - 1];
   convStore.save();
   input.value = "";
@@ -185,6 +186,7 @@ async function send(text?: string) {
         } else if (p.type === "done") {
           ai.citations = p.citations || [];
           ai.usedTools = p.used_tools || [];
+          ai.chart = p.chart || null;
         } else if (p.type === "error") {
           ai.content += (ai.content ? "\n\n" : "") + p.message;
         }
@@ -320,13 +322,15 @@ function onLogout() {
               <div v-else class="text markdown" v-html="renderMarkdown(m.content)" />
             </template>
             <div v-else class="text">{{ m.content }}</div>
+            <!-- 数据洞察:ECharts 图表 -->
+            <echart-block v-if="m.role === 'assistant' && m.chart" :option="m.chart" />
             <div v-if="m.citations && m.citations.length" class="cites">
               <span class="cites-label">📚 依据来源</span>
               <span v-for="c in prettyCitations(m.citations)" :key="c" class="cite">{{ c }}</span>
             </div>
-            <!-- 无知识库引用的回答 = 通用 LLM 生成,加免责声明 -->
+            <!-- 无知识库引用、且非图表洞察的回答 = 通用 LLM 生成,加免责声明 -->
             <div
-              v-else-if="m.role === 'assistant' && m.content && !m.isHighRisk"
+              v-else-if="m.role === 'assistant' && m.content && !m.isHighRisk && !m.chart"
               class="disclaimer"
             >
               <span class="disclaimer-icon">💡</span>
@@ -500,25 +504,27 @@ function onLogout() {
 }
 .welcome {
   text-align: center;
-  margin-top: 10vh;
+  margin-top: 3vh;
   color: #374151;
 }
 .welcome-logo {
-  font-size: 60px;
+  font-size: 44px;
 }
 .welcome h2 {
-  margin: 12px 0 8px;
+  margin: 8px 0 4px;
+  font-size: 21px;
 }
 .welcome p {
   color: #6b7280;
-  margin-bottom: 20px;
+  margin-bottom: 18px;
+  font-size: 13.5px;
 }
 /* 欢迎页:4 个子 Agent 能力卡片(点击直接发起代表性提问) */
 .cap-cards {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-  max-width: 600px;
+  gap: 12px;
+  max-width: 560px;
   margin: 0 auto;
 }
 .cap-card {
@@ -526,7 +532,7 @@ function onLogout() {
   background: #fff;
   border: 1px solid #e5e7eb;
   border-radius: 14px;
-  padding: 16px;
+  padding: 14px;
   cursor: pointer;
   transition: all 0.15s;
 }
@@ -536,27 +542,27 @@ function onLogout() {
   transform: translateY(-2px);
 }
 .cap-icon {
-  font-size: 26px;
+  font-size: 23px;
   line-height: 1;
 }
 .cap-name {
-  margin-top: 8px;
+  margin-top: 6px;
   font-weight: 700;
   color: #14403f;
-  font-size: 15px;
+  font-size: 14.5px;
 }
 .cap-desc {
-  margin-top: 3px;
-  font-size: 12.5px;
+  margin-top: 2px;
+  font-size: 12px;
   color: #6b7280;
 }
 .cap-try {
-  margin-top: 10px;
+  margin-top: 8px;
   font-size: 12px;
   color: #2f8b89;
   background: #eef6f5;
   border-radius: 8px;
-  padding: 6px 10px;
+  padding: 5px 9px;
 }
 .cap-try::before {
   content: "试试:";
