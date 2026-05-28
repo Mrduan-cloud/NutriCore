@@ -40,8 +40,11 @@ async def seed_user() -> None:
     if data["height_cm"] and data["weight_kg"]:
         h = data["height_cm"] / 100
         data["bmi"] = round(data["weight_kg"] / (h * h), 2)
-    await UserProfileModel.update_or_create(user_id=data["user_id"], defaults=data)
-    logger.info("demo profile seeded -> {}", data["user_id"])
+    uid = data["user_id"]
+    # defaults 不能再包含查询键 user_id,否则 tortoise create 会重复传参
+    defaults = {k: v for k, v in data.items() if k != "user_id"}
+    await UserProfileModel.update_or_create(user_id=uid, defaults=defaults)
+    logger.info("demo profile seeded -> {}", uid)
 
 
 async def seed_csv(model, path: Path, date_field: str = "date") -> None:
@@ -51,10 +54,10 @@ async def seed_csv(model, path: Path, date_field: str = "date") -> None:
             for k, v in list(row.items()):
                 if k not in {"user_id", date_field} and v != "":
                     row[k] = float(v) if "." in v else int(v)
-            await model.update_or_create(
-                user_id=row["user_id"], **{date_field: row[date_field]},
-                defaults=row,
-            )
+            # defaults 不能含查询键(user_id / date_field),否则 tortoise create 重复传参
+            lookup = {"user_id": row["user_id"], date_field: row[date_field]}
+            defaults = {k: v for k, v in row.items() if k not in lookup}
+            await model.update_or_create(**lookup, defaults=defaults)
     logger.info("seeded {} from {}", model.__name__, path.name)
 
 

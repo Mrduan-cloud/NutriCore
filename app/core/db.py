@@ -10,7 +10,9 @@ TORTOISE_CONFIG = {
     "connections": {"default": ""},  # 运行时填充
     "apps": {
         "models": {
-            "models": ["app.schemas.models", "aerich.models"],
+            # 用 Tortoise.generate_schemas 自动建表,不依赖 aerich 迁移,
+            # 所以这里不引用 aerich.models(否则未装 aerich 会 ConfigurationError)。
+            "models": ["app.schemas.models"],
             "default_connection": "default",
         }
     },

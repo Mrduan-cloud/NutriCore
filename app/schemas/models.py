@@ -39,9 +39,16 @@ class UserProfileModel(models.Model):
         }
 
     @classmethod
-    async def update_from_dict(cls, data: dict) -> "UserProfileModel":
+    async def upsert_from_dict(cls, data: dict) -> "UserProfileModel":
+        # 注意:不能叫 update_from_dict —— 那会覆盖 tortoise 内置的同名实例方法,
+        # 导致 update_or_create 在更新已存在行时调用到这个 async classmethod 而崩溃。
         user_id = data["user_id"]
-        clean = {k: v for k, v in data.items() if k in {f.model_field_name for f in cls._meta.fields_map.values()}}
+        clean = {
+            k: v
+            for k, v in data.items()
+            if k in {f.model_field_name for f in cls._meta.fields_map.values()}
+            and k != "user_id"
+        }
         obj, _ = await cls.update_or_create(user_id=user_id, defaults=clean)
         return obj
 

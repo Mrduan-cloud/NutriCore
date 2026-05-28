@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse
 from loguru import logger
 
 from app.api import (
+    routes_auth,
     routes_chat,
     routes_health,
     routes_insight,
@@ -66,6 +67,7 @@ def create_app() -> FastAPI:
     app.add_middleware(AccessLogMiddleware)
 
     app.include_router(routes_health.router, tags=["健康检查"])
+    app.include_router(routes_auth.router, prefix="/api/auth", tags=["鉴权"])
     app.include_router(routes_chat.router, prefix="/api/chat", tags=["AI 营养师"])
     app.include_router(routes_screening.router, prefix="/api/screening", tags=["营养风险筛查"])
     app.include_router(routes_plan.router, prefix="/api/plan", tags=["个性化营养方案"])

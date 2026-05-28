@@ -8,15 +8,29 @@ from typing import Any
 from loguru import logger
 
 from app.agents.nutritionist.memory import extract_entities, merge_profile
-from app.agents.nutritionist.prompts import INTENT_PROMPT
+from app.agents.nutritionist.prompts import CONSULT_SYSTEM, INTENT_PROMPT
 from app.core.llm import chat_complete
 from app.observability.metrics import agent_invocations
 
 
-HIGH_RISK_KEYWORDS = (
+# 急重症 / 孕产期 —— 紧急,导向"尽快就医"
+ACUTE_RISK_KEYWORDS = (
     "急救", "胸痛", "昏迷", "孕妇", "怀孕", "孕期", "化疗", "透析",
     "晕厥", "脑梗", "心梗", "出血",
 )
+
+# 慢性病 / 临床 / 用药 —— 涉及诊疗范畴,营养建议不能替代医疗,
+# 导向"请专科医生 / 临床营养师评估"。把这类问题挡在 LLM 生成临床建议之前:
+#   1. 合规:互联网健康咨询不提供疾病特异性临床/用药方案
+#   2. 产品:营养 Agent 守住"营养陪伴"边界,不越界做诊疗
+CLINICAL_KEYWORDS = (
+    "高血压", "糖尿病", "痛风", "冠心病", "高血脂", "高尿酸", "肾病", "肝病",
+    "甲亢", "甲减", "癌", "肿瘤", "确诊", "病情", "吃药", "用药", "药物",
+    "剂量", "处方", "治疗", "诊断", "复查指标",
+)
+
+# 合并:任一命中都走安全兜底(safety_fallback)
+HIGH_RISK_KEYWORDS = ACUTE_RISK_KEYWORDS + CLINICAL_KEYWORDS
 
 INTENT_TO_AGENT = {
     "screening": "risk_screening",
@@ -192,7 +206,15 @@ async def subagent_dispatcher(state: dict[str, Any]) -> dict[str, Any]:
 
     if sub == "risk_screening":
         return {
-            "final_answer": "请打开「营养风险筛查」入口完成 NRS2002 问卷，我会基于结果给你详细解读。",
+            "final_answer": (
+                "我可以帮你做 **NRS-2002 营养风险筛查**。它从「疾病严重程度 + 营养状态 + 年龄」"
+                "三个维度评分,帮你判断是否存在营养风险。\n\n"
+                "我们从几个问题开始:\n"
+                "1. 你最近 3 个月体重有没有明显下降?大概多少 kg?\n"
+                "2. 最近一周进食量比平时减少了吗?\n"
+                "3. 目前有没有正在治疗的疾病?\n\n"
+                "把这几项告诉我,我来给你算分并解读。"
+            ),
             "tool_calls": [{"tool": "risk_screening_intro"}],
         }
 
@@ -201,7 +223,7 @@ async def subagent_dispatcher(state: dict[str, Any]) -> dict[str, Any]:
         try:
             plan = await generate_meal_plan(profile, user_request=last_msg)
             return {
-                "final_answer": "已为你生成 7 天个性化营养方案，可在「方案中心」查看。",
+                "final_answer": _format_meal_plan_md(plan),
                 "tool_calls": [{"tool": "meal_plan.generate"}],
                 "citations": _collect_citations(plan),
             }
@@ -218,7 +240,7 @@ async def subagent_dispatcher(state: dict[str, Any]) -> dict[str, Any]:
         try:
             result = await run_workflow(last_msg, user_id)
             return {
-                "final_answer": "已查询并生成可视化，可在「数据洞察」面板查看。",
+                "final_answer": _format_insight_md(result),
                 "tool_calls": [{"tool": "data_insight.query"}],
                 "extra": {"insight": result},
             }
@@ -256,11 +278,120 @@ async def citation_validator(state: dict[str, Any]) -> dict[str, Any]:
     return {"citations": valid}
 
 
+def _format_profile(profile: dict[str, Any]) -> str:
+    """把用户画像压成一行中文上下文,喂给营养师做个性化。"""
+    if not profile:
+        return "(暂无用户画像)"
+    parts: list[str] = []
+    label = {
+        "age": "年龄", "gender": "性别", "height_cm": "身高cm",
+        "weight_kg": "体重kg", "bmi": "BMI", "chronic_diseases": "慢病史",
+        "allergies": "过敏源", "diet_preferences": "饮食偏好",
+        "budget_per_day": "每日预算元",
+    }
+    for k, name in label.items():
+        v = profile.get(k)
+        if v in (None, "", [], {}):
+            continue
+        if isinstance(v, list):
+            v = "、".join(map(str, v))
+        parts.append(f"{name}={v}")
+    return " / ".join(parts) if parts else "(暂无用户画像)"
+
+
+# Cross-Encoder 相关性阈值:低于此分视为"知识库无关",不作为证据/引用。
+# BGE reranker 原始 logit:相关通常为正,不相关为负(如运动问题 vs 饮食知识库)。
+_CONSULT_RERANK_MIN = 0.0
+
+
+async def consult_rag_context(query: str, top_k: int = 3) -> tuple[str, list[str]]:
+    """为 consult 检索知识库并按相关性过滤,返回 (证据文本块, 真实引用列表)。
+
+    流程:hybrid 召回 → Cross-Encoder 精排 → **只保留分数 ≥ 阈值的相关片段**。
+    若没有任何片段足够相关(例如问运动、而库里只有饮食知识),返回 ('', []),
+    答复将基于通用营养学,且**不挂任何引用**(避免"答运动却引饮食指南"的错误溯源)。
+    """
+    try:
+        from app.config import get_settings
+        from app.rag.hybrid_retrieval import hybrid_search
+        from app.rag.reranker import cross_encoder_rerank
+
+        s = get_settings()
+        recalled = await hybrid_search(
+            collection=s.milvus_collection_guide, query=query, top_k=12
+        )
+        ranked = cross_encoder_rerank(query, recalled, top_k=top_k) if recalled else []
+    except Exception as e:  # noqa: BLE001
+        logger.warning("consult retrieval failed, answering without RAG: {}", e)
+        return "", []
+
+    relevant = [c for c in ranked if c.get("rerank_score", -99) >= _CONSULT_RERANK_MIN]
+    if not relevant:
+        logger.debug("consult: no relevant KB chunk (top score too low), no citations")
+        return "", []
+    evidence = "\n".join(
+        f"[{c.get('doc_id')}:{c.get('chunk_id')}] {(c.get('text') or '')[:200]}"
+        for c in relevant
+    )
+    citations = [f"{c.get('doc_id')}:{c.get('chunk_id')}" for c in relevant]
+    return evidence, citations
+
+
+async def build_consult_prompt(query: str, profile: dict[str, Any]) -> tuple[str, list[str]]:
+    """构建 consult 的用户 prompt + 返回真实引用(供同步节点与流式端点共用)。"""
+    evidence, citations = await consult_rag_context(query)
+    profile_ctx = _format_profile(profile)
+    ref = evidence or "(知识库无直接匹配,可基于通用营养学回答)"
+    prompt = (
+        f"用户画像:{profile_ctx}\n\n"
+        f"知识库参考:\n{ref}\n\n"
+        f"用户问题:{query}\n\n"
+        "请基于知识库参考与画像精炼作答(250 字内,先结论再要点)。"
+    )
+    return prompt, citations
+
+
+async def general_consult(state: dict[str, Any]) -> dict[str, Any]:
+    """一般营养咨询 —— consult 意图的真实回答节点(RAG 接地)。
+
+    检索知识库 → 把证据喂给 LLM → 返回真实引用。
+    没有这个节点的话,consult 在 _route 里会直接到 END,导致"普通对话无回答"。
+    """
+    last_msg = _last_user_text(state)
+    prompt, citations = await build_consult_prompt(last_msg, state.get("user_profile", {}))
+    try:
+        answer = await chat_complete(
+            prompt,
+            system=CONSULT_SYSTEM,
+            temperature=0.3,
+            max_tokens=600,
+        )
+    except Exception:  # noqa: BLE001
+        logger.bind(
+            request_id=state.get("request_id", "-"),
+            user_id=state.get("user_id", "anonymous"),
+        ).exception("general_consult LLM failed")
+        agent_invocations.labels(agent="general_consult", outcome="error").inc()
+        return {"final_answer": "营养咨询暂时不可用,稍后再试。"}
+
+    # 兜底:剥离模型可能仍残留的 [source: ...] 标记
+    cleaned = re.sub(r"\[source:[^\]]*\]", "", answer or "").strip()
+    agent_invocations.labels(agent="general_consult", outcome="ok").inc()
+    return {
+        "final_answer": cleaned or "我在,请把你的营养问题说得具体一些。",
+        "citations": citations,
+    }
+
+
 async def safety_fallback(state: dict[str, Any]) -> dict[str, Any]:
     fallback = (
-        "你描述的情况涉及较高健康风险（如用药 / 急重症 / 孕产期），"
-        "营养方案不是合适的干预手段。建议尽快前往专科医院由临床医生评估处理。\n"
-        "如果是非紧急的日常营养咨询，可以补充说明你的具体场景，我再帮你判断。"
+        "你的问题涉及具体疾病、用药或临床医疗范畴。营养建议不能替代专业诊疗,"
+        "为了你的安全,建议前往正规医院,由专科医生或临床营养师结合你的检查指标做评估。\n\n"
+        "我可以帮你的是日常、非临床的营养话题,比如:\n"
+        "· 减脂 / 增肌期的饮食结构怎么安排\n"
+        "· 三餐怎么搭配更均衡、低 GI 主食有哪些\n"
+        "· 某类食材的营养特点与替代方案\n\n"
+        "换个这样的角度问我,我来帮你。"
     )
     agent_invocations.labels(agent="safety_fallback", outcome="triggered").inc()
     return {"final_answer": fallback, "is_high_risk": True}
@@ -291,3 +422,46 @@ def _collect_citations(plan: dict) -> list[str]:
             for item in day.get(slot, []) or []:
                 out.extend(item.get("citations", []))
     return list(dict.fromkeys(out))
+
+
+_SLOT_NAME = {"breakfast": "早餐", "lunch": "午餐", "dinner": "晚餐", "snack": "加餐"}
+
+
+def _format_meal_plan_md(plan: dict) -> str:
+    """把生成的 7 天方案 dict 渲染成紧凑的对话内 Markdown(直接展示,不跳页)。"""
+    target = plan.get("target_kcal")
+    head = "已根据你的画像生成 **7 天个性化营养方案**"
+    if target:
+        head += f"(目标热量约 **{round(target)} kcal/天**)"
+    lines = [head + ":"]
+    for day in (plan.get("days") or [])[:7]:
+        d = day.get("day", "?")
+        tk = day.get("total_kcal")
+        day_head = f"**第 {d} 天**" + (f" · 约 {round(tk)} kcal" if tk else "")
+        lines.append("\n" + day_head)
+        for slot, name in _SLOT_NAME.items():
+            items = day.get(slot) or []
+            if not items:
+                continue
+            foods = "、".join(
+                f"{it.get('name', '')}"
+                + (f"({round(it.get('portion_g'))}g)" if it.get("portion_g") else "")
+                for it in items
+            )
+            lines.append(f"- {name}:{foods}")
+    return "\n".join(lines)
+
+
+def _format_insight_md(result: dict) -> str:
+    """把数据洞察结果渲染成对话内 Markdown 摘要。"""
+    if not result:
+        return "暂时没有查询到你的健康数据。"
+    summary = result.get("summary") or result.get("insight") or ""
+    lines = ["已基于你的健康数据生成洞察:\n"]
+    if summary:
+        lines.append(str(summary))
+    chart = result.get("chart")
+    if chart:
+        ctype = chart.get("type") if isinstance(chart, dict) else None
+        lines.append(f"\n_(已生成{('「' + str(ctype) + '」' ) if ctype else ''}可视化图表数据)_")
+    return "\n".join(lines)

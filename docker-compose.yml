@@ -22,7 +22,9 @@ services:
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:-changeme}
       TZ: Asia/Shanghai
     ports:
-      - "${MYSQL_PORT:-3306}:3306"
+      # 本机已有 MySQL 占用 3306,这里把宿主端口改到 3307(容器内部仍是 3306,
+      # api 走 Docker 内网 mysql:3306 连接,不受宿主端口影响)。本地部署专用改动。
+      - "3307:3306"
     volumes:
       - mysql_data:/var/lib/mysql
     command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
