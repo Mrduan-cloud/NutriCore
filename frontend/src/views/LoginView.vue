@@ -19,6 +19,15 @@ const showAdd = ref(false);
 const newUser = ref("");
 const adding = ref(false);
 
+// 已知演示人设的画像速记(只为登录页一眼可读,新建用户无标签)
+const PERSONA_HINTS: Record<string, string> = {
+  demo: "男 · 高血压 · 控盐",
+  xinxin: "女 · 素食 · 减脂",
+};
+function personaHint(u: string): string {
+  return PERSONA_HINTS[u] || "";
+}
+
 async function fetchUsers() {
   try {
     const { data } = await axios.get("/api/auth/users");
@@ -98,19 +107,20 @@ async function onLogin() {
           />
         </n-form-item>
 
-        <div class="quick-users">
-          <span class="qu-label">快速选择</span>
+        <div class="personas">
+          <span class="p-label">演示人设 · 点选快速体验</span>
           <button
             v-for="u in users"
             :key="u"
             type="button"
-            class="qu-chip"
+            class="persona"
             :class="{ active: u === username }"
             @click="pickUser(u)"
           >
-            {{ u }}
+            <span class="p-name">{{ u }}</span>
+            <span v-if="personaHint(u)" class="p-tag">{{ personaHint(u) }}</span>
           </button>
-          <button type="button" class="qu-add" @click="showAdd = true">＋ 添加用户</button>
+          <button type="button" class="persona add" @click="showAdd = true">＋ 添加</button>
         </div>
 
         <n-button
@@ -123,7 +133,7 @@ async function onLogin() {
           登 录
         </n-button>
       </n-form>
-      <p class="hint">演示账号:demo / nutricore2024</p>
+      <p class="hint">演示账号:demo / xinxin · 口令 nutricore2024</p>
     </n-card>
 
     <!-- 添加用户 -->
@@ -186,46 +196,62 @@ async function onLogin() {
   margin-bottom: 18px;
   color: #1f2937;
 }
-.quick-users {
+.personas {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  align-items: stretch;
   gap: 8px;
   margin: 2px 0 18px;
 }
-.qu-label {
+.p-label {
+  width: 100%;
   font-size: 12px;
   color: #9ca3af;
+  margin-bottom: 2px;
 }
-.qu-chip {
-  font-size: 13px;
-  color: #2f8b89;
-  background: #eef6f5;
-  border: 1px solid #d6e9e7;
-  border-radius: 999px;
-  padding: 3px 12px;
+.persona {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  background: #f4f8f7;
+  border: 1px solid #dcebe9;
+  border-radius: 10px;
+  padding: 7px 12px;
   cursor: pointer;
   transition: all 0.12s;
+  min-width: 76px;
 }
-.qu-chip:hover {
+.persona:hover {
   border-color: #2f8b89;
 }
-.qu-chip.active {
+.persona.active {
   background: #2f8b89;
-  color: #fff;
   border-color: #2f8b89;
 }
-.qu-add {
-  font-size: 13px;
+.persona.active .p-name,
+.persona.active .p-tag {
+  color: #fff;
+}
+.p-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #14403f;
+}
+.p-tag {
+  font-size: 11px;
+  color: #6b8b88;
+}
+.persona.add {
+  justify-content: center;
+  align-items: center;
   color: #6b7280;
   background: #fff;
-  border: 1px dashed #cbd5e1;
-  border-radius: 999px;
-  padding: 3px 12px;
-  cursor: pointer;
-  transition: all 0.12s;
+  border-style: dashed;
+  border-color: #cbd5e1;
+  font-size: 13px;
 }
-.qu-add:hover {
+.persona.add:hover {
   border-color: #2f8b89;
   color: #2f8b89;
 }
