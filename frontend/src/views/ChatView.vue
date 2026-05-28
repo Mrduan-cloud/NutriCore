@@ -72,12 +72,42 @@ function pickAvatar(style: string) {
 // 当前会话的消息(响应式指向 store 里 active 会话)
 const messages = computed<ChatMessage[]>(() => convStore.active().messages);
 
-const examples = [
-  "低 GI 的主食有哪些推荐?",
-  "我想减脂,日常三餐怎么搭配?",
-  "健身增肌期蛋白质怎么补充?",
-  "帮我生成一份七天减脂食谱",
+// 4 个子 Agent 的能力入口 —— key 与后端 intent 对齐,点击即发起一句代表性提问,
+// 由后端 intent_router 自动派发到对应子 Agent(答案上会贴意图标签印证路由)。
+const capabilities = [
+  {
+    key: "consult",
+    icon: "💬",
+    name: "营养咨询",
+    desc: "低 GI 主食、三餐搭配、营养知识",
+    prompt: "低 GI 的主食有哪些推荐?",
+  },
+  {
+    key: "screening",
+    icon: "📋",
+    name: "风险筛查",
+    desc: "NRS-2002 营养风险评估",
+    prompt: "帮我做一次 NRS2002 营养风险筛查",
+  },
+  {
+    key: "plan",
+    icon: "🍱",
+    name: "膳食方案",
+    desc: "7 天个性化食谱",
+    prompt: "帮我生成一份七天减脂食谱",
+  },
+  {
+    key: "insight",
+    icon: "📊",
+    name: "数据洞察",
+    desc: "近 30 天体重 / 营养趋势",
+    prompt: "分析我近30天的蛋白质达标情况",
+  },
 ];
+
+function fillPrompt(text: string) {
+  input.value = text;
+}
 
 const intentLabel: Record<string, string> = {
   consult: "营养咨询",
@@ -253,10 +283,18 @@ function onLogout() {
         <div v-if="messages.length === 0" class="welcome">
           <div class="welcome-logo">🥗</div>
           <h2>你好,我是 NutriCore AI 营养师</h2>
-          <p>我可以帮你做营养咨询、风险筛查、膳食方案和健康数据洞察。试试:</p>
-          <div class="examples">
-            <div v-for="ex in examples" :key="ex" class="example-chip" @click="send(ex)">
-              {{ ex }}
+          <p>背后是 4 个协作的专业 Agent,问我任意一句,自动派给最合适的那个 ↓</p>
+          <div class="cap-cards">
+            <div
+              v-for="c in capabilities"
+              :key="c.key"
+              class="cap-card"
+              @click="send(c.prompt)"
+            >
+              <div class="cap-icon">{{ c.icon }}</div>
+              <div class="cap-name">{{ c.name }}</div>
+              <div class="cap-desc">{{ c.desc }}</div>
+              <div class="cap-try">{{ c.prompt }}</div>
             </div>
           </div>
         </div>
@@ -301,19 +339,32 @@ function onLogout() {
         </div>
       </main>
 
-      <footer class="composer">
-        <n-input
-          v-model:value="input"
-          type="textarea"
-          :autosize="{ minRows: 1, maxRows: 4 }"
-          placeholder="输入你的健康问题,Enter 发送(Shift+Enter 换行)"
-          :disabled="loading"
-          @keydown.enter.exact.prevent="send()"
-        />
-        <n-button type="primary" size="large" :loading="loading" :disabled="!input.trim()" @click="send()">
-          发送
-        </n-button>
-      </footer>
+      <div class="composer-area">
+        <!-- 常驻能力快捷条:对话进行中也能随时唤起任一子 Agent(点击填入,可改) -->
+        <div class="cap-bar">
+          <span
+            v-for="c in capabilities"
+            :key="c.key"
+            class="cap-pill"
+            @click="fillPrompt(c.prompt)"
+          >
+            {{ c.icon }} {{ c.name }}
+          </span>
+        </div>
+        <footer class="composer">
+          <n-input
+            v-model:value="input"
+            type="textarea"
+            :autosize="{ minRows: 1, maxRows: 4 }"
+            placeholder="输入你的健康问题,Enter 发送(Shift+Enter 换行)"
+            :disabled="loading"
+            @keydown.enter.exact.prevent="send()"
+          />
+          <n-button type="primary" size="large" :loading="loading" :disabled="!input.trim()" @click="send()">
+            发送
+          </n-button>
+        </footer>
+      </div>
     </div>
 
     <!-- 头像选择器 -->
@@ -462,26 +513,54 @@ function onLogout() {
   color: #6b7280;
   margin-bottom: 20px;
 }
-.examples {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  justify-content: center;
+/* 欢迎页:4 个子 Agent 能力卡片(点击直接发起代表性提问) */
+.cap-cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  max-width: 600px;
+  margin: 0 auto;
 }
-.example-chip {
+.cap-card {
+  text-align: left;
   background: #fff;
   border: 1px solid #e5e7eb;
-  border-radius: 12px;
-  padding: 11px 16px;
+  border-radius: 14px;
+  padding: 16px;
   cursor: pointer;
   transition: all 0.15s;
-  color: #2f8b89;
-  font-size: 14px;
 }
-.example-chip:hover {
+.cap-card:hover {
   border-color: #2f8b89;
-  box-shadow: 0 4px 12px rgba(47, 139, 137, 0.15);
-  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(47, 139, 137, 0.14);
+  transform: translateY(-2px);
+}
+.cap-icon {
+  font-size: 26px;
+  line-height: 1;
+}
+.cap-name {
+  margin-top: 8px;
+  font-weight: 700;
+  color: #14403f;
+  font-size: 15px;
+}
+.cap-desc {
+  margin-top: 3px;
+  font-size: 12.5px;
+  color: #6b7280;
+}
+.cap-try {
+  margin-top: 10px;
+  font-size: 12px;
+  color: #2f8b89;
+  background: #eef6f5;
+  border-radius: 8px;
+  padding: 6px 10px;
+}
+.cap-try::before {
+  content: "试试:";
+  opacity: 0.7;
 }
 
 .row {
@@ -680,11 +759,37 @@ function onLogout() {
   border-radius: 8px;
 }
 
-.composer {
+.composer-area {
   flex-shrink: 0;
   background: #fff;
   border-top: 1px solid #e5e7eb;
-  padding: 14px 24px;
+}
+.cap-bar {
+  max-width: 820px;
+  margin: 0 auto;
+  padding: 10px 24px 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.cap-pill {
+  font-size: 12.5px;
+  color: #2f8b89;
+  background: #eef6f5;
+  border: 1px solid #d6e9e7;
+  border-radius: 999px;
+  padding: 4px 12px;
+  cursor: pointer;
+  transition: all 0.12s;
+  user-select: none;
+}
+.cap-pill:hover {
+  background: #2f8b89;
+  color: #fff;
+  border-color: #2f8b89;
+}
+.composer {
+  padding: 12px 24px 16px;
   display: flex;
   gap: 12px;
   align-items: flex-end;
