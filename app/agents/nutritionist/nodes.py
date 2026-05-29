@@ -8,7 +8,7 @@ from typing import Any
 from loguru import logger
 
 from app.agents.nutritionist.memory import extract_entities, merge_profile
-from app.agents.nutritionist.prompts import CONSULT_SYSTEM, INTENT_PROMPT, SCREENING_SYSTEM
+from app.agents.nutritionist.prompts import CONSULT_SYSTEM, INTENT_PROMPT
 from app.core.llm import chat_complete
 from app.observability.metrics import agent_invocations
 
@@ -228,29 +228,6 @@ async def _recent_weight_trend(user_id: str) -> dict[str, Any] | None:
         return None
 
 
-async def _build_screening_known(user_id: str, profile: dict[str, Any]) -> str:
-    """汇总 NRS-2002 可预填的「已知信息」(档案 + 近期体重趋势),喂给筛查 LLM。"""
-    parts: list[str] = []
-    age = profile.get("age")
-    if age is not None:
-        parts.append(f"年龄:{age} 岁（{'≥70,+1 分' if age >= 70 else '<70,0 分'}）")
-    cd = profile.get("chronic_diseases") or []
-    parts.append(f"慢性病史:{'、'.join(map(str, cd)) if cd else '无记录'}")
-    bmi = profile.get("bmi")
-    if bmi:
-        parts.append(f"BMI:{bmi}")
-    trend = await _recent_weight_trend(user_id)
-    if trend:
-        direction = "下降" if trend["delta"] < 0 else ("上升" if trend["delta"] > 0 else "持平")
-        parts.append(
-            f"近 {trend['days']} 天体重:{trend['first']} → {trend['last']} kg"
-            f"(较前{direction} {abs(trend['delta'])} kg)"
-        )
-    else:
-        parts.append("近期体重记录:暂无")
-    return "\n".join(f"- {p}" for p in parts)
-
-
 async def intent_router(state: dict[str, Any]) -> dict[str, Any]:
     """三层意图分类:高风险 gate → 规则关键词 → LLM 兜底。
 
@@ -327,46 +304,28 @@ async def subagent_dispatcher(state: dict[str, Any]) -> dict[str, Any]:
     last_msg = _last_user_text(state)
 
     if sub == "risk_screening":
-        # 数据预填 + LLM 驱动的多轮 NRS-2002:先把档案/体重趋势喂进去,能推断的子项
-        # 不再问用户;每次只问一个缺失项并给可点选项(前端渲染快捷按钮)。
-        known = await _build_screening_known(user_id, profile)
+        # NRS-2002:LLM 仅抽取槽位,评分由 risk_screening.compute_nrs2002 确定性计算。
+        # 数据预填(年龄/BMI/慢病/体重趋势)+ 每次只问一个缺失项 + 可点选项。
+        from app.agents.risk_screening.conversation import screen_step
+
+        trend = await _recent_weight_trend(user_id)
         convo = _conversation_text(state) or f"用户:{last_msg}"
-        prompt = (
-            f"【已知信息】\n{known}\n\n"
-            f"【对话记录】\n{convo}\n\n"
-            "请按规则推进:能从已知信息预填的子项别再问;只问一个仍缺失的项并给选项;"
-            "信息足够就直接给三项子分 + 总分 + 判定。"
-        )
         try:
-            raw = await chat_complete(
-                prompt,
-                system=SCREENING_SYSTEM,
-                response_format="json",
-                temperature=0.2,
-                max_tokens=600,
-            )
+            step = await screen_step(profile, convo, trend, user_id)
         except Exception:  # noqa: BLE001
             logger.bind(request_id=state.get("request_id", "-"), user_id=user_id).exception(
-                "risk_screening LLM failed"
+                "risk_screening failed"
             )
             agent_invocations.labels(agent="subagent_dispatcher", outcome="screening_error").inc()
             return {"final_answer": "营养风险筛查暂时不可用,稍后再试。"}
 
-        data = _extract_json(raw)
-        ans = (data.get("message") or "").strip() or (raw or "").strip()
-        quick = data.get("quick_replies")
-        quick = [str(q) for q in quick] if isinstance(quick, list) else []
-        if not ans:
-            ans = (
-                "我们来做 NRS-2002 营养风险筛查。最近一周你的进食量比平时有变化吗?"
-            )
-            quick = quick or ["跟平时差不多", "减少约 1/4", "减少约一半", "几乎吃不下"]
+        ans = (step.get("message") or "").strip()
         # 固定标题:统一展示,同时作为「筛查进行中」的衔接标记(供下一轮路由识别)
         if "NRS-2002" not in ans:
             ans = "**NRS-2002 营养风险筛查**\n\n" + ans
         return {
             "final_answer": ans,
-            "quick_replies": quick,
+            "quick_replies": step.get("quick_replies") or [],
             "tool_calls": [{"tool": "nrs2002_screening"}],
         }
 

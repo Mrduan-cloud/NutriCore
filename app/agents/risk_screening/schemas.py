@@ -28,7 +28,12 @@ class NRSAnswer(BaseModel):
 
     age: int = Field(..., ge=0, le=120)
     bmi: float = Field(..., ge=10, le=60)
-    weight_loss_pct_3m: float = Field(0, ge=0, le=100, description="3 个月体重下降百分比")
+    weight_loss_pct_3m: float = Field(
+        0, ge=0, le=100, description="体重下降百分比(按 weight_loss_period_months 给定的时间窗)"
+    )
+    weight_loss_period_months: int = Field(
+        3, ge=1, le=3, description="体重下降发生的时间窗(月):1/2/3,用于套用 NRS-2002 不同阈值"
+    )
     food_intake_drop_pct: float = Field(0, ge=0, le=100, description="近 1 周进食量下降百分比")
     disease_severity: DiseaseSeverity = DiseaseSeverity.NONE
 
