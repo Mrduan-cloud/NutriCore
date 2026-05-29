@@ -431,27 +431,53 @@ function onLogout() {
 .layout {
   height: 100vh;
   display: flex;
-  background: #f3f5f7;
+  background: radial-gradient(1200px 600px at 70% -10%, #eef6f4 0%, #f4f7f6 45%, #eef2f1 100%);
+}
+
+/* 细滚动条 */
+.messages::-webkit-scrollbar,
+.conv-list::-webkit-scrollbar {
+  width: 8px;
+}
+.messages::-webkit-scrollbar-thumb {
+  background: rgba(20, 64, 63, 0.16);
+  border-radius: 8px;
+}
+.messages::-webkit-scrollbar-thumb:hover {
+  background: rgba(20, 64, 63, 0.28);
+}
+.conv-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
 }
 
 /* ===== 侧边栏 ===== */
 .sidebar {
-  width: 260px;
+  width: 264px;
   flex-shrink: 0;
-  background: #14403f;
+  background: linear-gradient(185deg, #16413f 0%, #0e302f 100%);
   color: #e6f4f3;
   display: flex;
   flex-direction: column;
-  padding: 16px 12px;
+  padding: 18px 14px;
+  box-shadow: 1px 0 0 rgba(255, 255, 255, 0.04), 6px 0 24px rgba(8, 30, 29, 0.18);
 }
 .side-brand {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 4px 6px 16px;
+  gap: 11px;
+  padding: 4px 6px 18px;
 }
 .side-brand .logo {
-  font-size: 26px;
+  font-size: 24px;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.04));
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
 }
 .side-brand .name {
   font-size: 18px;
@@ -476,22 +502,33 @@ function onLogout() {
   letter-spacing: 1px;
 }
 .conv-item {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 9px 10px;
-  border-radius: 8px;
+  padding: 9px 11px;
+  border-radius: 10px;
   cursor: pointer;
   font-size: 13px;
   color: #cfe6e4;
-  transition: background 0.15s;
+  transition: background 0.15s, color 0.15s;
 }
 .conv-item:hover {
   background: rgba(255, 255, 255, 0.07);
 }
 .conv-item.active {
-  background: rgba(255, 255, 255, 0.13);
+  background: rgba(120, 220, 200, 0.16);
   color: #fff;
+}
+.conv-item.active::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  border-radius: 3px;
+  background: #6fe3c8;
 }
 .conv-title {
   white-space: nowrap;
@@ -585,23 +622,32 @@ function onLogout() {
 .cap-card {
   text-align: left;
   background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 14px;
-  padding: 14px;
+  border: 1px solid #e9efee;
+  border-radius: 16px;
+  padding: 16px;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+  box-shadow: 0 1px 2px rgba(16, 40, 39, 0.04);
 }
 .cap-card:hover {
-  border-color: #2f8b89;
-  box-shadow: 0 6px 18px rgba(47, 139, 137, 0.14);
-  transform: translateY(-2px);
+  border-color: #bfe3dd;
+  box-shadow: 0 10px 28px rgba(47, 139, 137, 0.16);
+  transform: translateY(-3px);
 }
 .cap-icon {
-  font-size: 23px;
+  font-size: 21px;
   line-height: 1;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(145deg, #eaf6f4, #f3faf9);
+  border: 1px solid #e2efed;
+  border-radius: 12px;
 }
 .cap-name {
-  margin-top: 6px;
+  margin-top: 10px;
   font-weight: 700;
   color: #14403f;
   font-size: 14.5px;
@@ -626,20 +672,32 @@ function onLogout() {
 
 .row {
   display: flex;
-  gap: 10px;
-  margin-bottom: 16px;
+  gap: 11px;
+  margin-bottom: 18px;
   align-items: flex-start;
+  animation: bubble-in 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes bubble-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 .row.user {
   flex-direction: row-reverse;
 }
 .avatar {
   flex-shrink: 0;
+  box-shadow: 0 2px 6px rgba(16, 40, 39, 0.12);
 }
 .bubble {
   max-width: 78%;
-  padding: 11px 15px;
-  border-radius: 14px;
+  padding: 12px 16px;
+  border-radius: 16px;
   line-height: 1.7;
   font-size: 15px;
   white-space: pre-wrap;
@@ -648,14 +706,16 @@ function onLogout() {
 .bubble.assistant {
   background: #fff;
   color: #1f2937;
-  border-top-left-radius: 4px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  border-top-left-radius: 5px;
+  border: 1px solid #eef2f1;
+  box-shadow: 0 6px 20px rgba(16, 40, 39, 0.06);
 }
 .bubble.user {
-  background: #2f8b89;
+  background: linear-gradient(135deg, #34948f 0%, #2a7d79 100%);
   color: #fff;
-  border-top-right-radius: 4px;
+  border-top-right-radius: 5px;
   white-space: normal;
+  box-shadow: 0 6px 18px rgba(42, 125, 121, 0.28);
 }
 .bubble .meta {
   display: flex;
@@ -849,8 +909,17 @@ function onLogout() {
 
 .composer-area {
   flex-shrink: 0;
-  background: #fff;
-  border-top: 1px solid #e5e7eb;
+  background: rgba(255, 255, 255, 0.86);
+  backdrop-filter: blur(8px);
+  border-top: 1px solid #e7eeed;
+  box-shadow: 0 -6px 20px rgba(16, 40, 39, 0.04);
+}
+/* 输入框聚焦时的青绿光晕 */
+.composer :deep(.n-input) {
+  border-radius: 14px;
+}
+.composer :deep(.n-input.n-input--focus) {
+  box-shadow: 0 0 0 3px rgba(47, 139, 137, 0.14);
 }
 .cap-bar {
   max-width: 820px;

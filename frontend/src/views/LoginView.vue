@@ -159,37 +159,67 @@ async function onLogin() {
 
 <style scoped>
 .login-wrap {
+  position: relative;
   min-height: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #2f8b89 0%, #1f5f5e 60%, #15403f 100%);
+  background:
+    radial-gradient(900px 520px at 18% 12%, rgba(111, 227, 200, 0.28) 0%, transparent 55%),
+    radial-gradient(800px 600px at 88% 88%, rgba(28, 84, 82, 0.55) 0%, transparent 60%),
+    linear-gradient(140deg, #2f8b89 0%, #1f5f5e 58%, #11302f 100%);
   padding: 24px;
+  overflow: hidden;
 }
 .brand {
+  position: relative;
   text-align: center;
   color: #fff;
   margin-bottom: 28px;
+  animation: rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 .brand .logo {
-  font-size: 56px;
+  font-size: 40px;
+  width: 78px;
+  height: 78px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(150deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.06));
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 22px;
+  box-shadow: 0 12px 30px rgba(8, 30, 29, 0.35);
+  backdrop-filter: blur(4px);
 }
 .brand h1 {
   font-size: 38px;
   font-weight: 800;
   letter-spacing: 1px;
-  margin: 6px 0;
+  margin: 14px 0 6px;
 }
 .brand p {
-  opacity: 0.9;
+  opacity: 0.92;
   font-size: 15px;
 }
 .login-card {
-  width: 380px;
+  position: relative;
+  width: 384px;
   max-width: 90vw;
-  border-radius: 18px;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
+  border-radius: 20px;
+  box-shadow: 0 24px 60px rgba(6, 24, 23, 0.35), 0 2px 0 rgba(255, 255, 255, 0.5) inset;
+  animation: rise 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.06s both;
+}
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 .title {
   text-align: center;
