@@ -11,6 +11,8 @@ export interface ChatMessage {
   usedTools?: string[];
   // 数据洞察:后端随 done 事件下发的 ECharts 配置(持久化后可回看重绘)
   chart?: Record<string, any> | null;
+  // 风险筛查:可点快捷选项(点一下即作答),仅在最新一条上展示
+  quickReplies?: string[];
 }
 
 export interface Conversation {

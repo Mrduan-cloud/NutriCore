@@ -147,7 +147,14 @@ async function send(text?: string) {
     .map((m) => ({ role: m.role, content: m.content }));
   conv.messages.push({ role: "user", content });
   // 占位 assistant 消息,流式往里填;取回 reactive 代理引用
-  conv.messages.push({ role: "assistant", content: "", citations: [], usedTools: [], chart: null });
+  conv.messages.push({
+    role: "assistant",
+    content: "",
+    citations: [],
+    usedTools: [],
+    chart: null,
+    quickReplies: [],
+  });
   const ai = conv.messages[conv.messages.length - 1];
   convStore.save();
   input.value = "";
@@ -199,6 +206,7 @@ async function send(text?: string) {
           ai.citations = p.citations || [];
           ai.usedTools = p.used_tools || [];
           ai.chart = p.chart || null;
+          ai.quickReplies = p.quick_replies || [];
         } else if (p.type === "error") {
           ai.content += (ai.content ? "\n\n" : "") + p.message;
         }
@@ -340,15 +348,34 @@ function onLogout() {
               <span class="cites-label">📚 依据来源</span>
               <span v-for="c in prettyCitations(m.citations)" :key="c" class="cite">{{ c }}</span>
             </div>
-            <!-- 无知识库引用、且非图表洞察的回答 = 通用 LLM 生成,加免责声明 -->
+            <!-- 无知识库引用、非图表洞察、非筛查流程的回答 = 通用 LLM 生成,加免责声明 -->
             <div
-              v-else-if="m.role === 'assistant' && m.content && !m.isHighRisk && !m.chart"
+              v-else-if="
+                m.role === 'assistant' && m.content && !m.isHighRisk && !m.chart &&
+                m.intent !== 'screening'
+              "
               class="disclaimer"
             >
               <span class="disclaimer-icon">💡</span>
               <span class="disclaimer-text">
                 <b>AI 生成内容</b>,基于通用营养学知识、未匹配知识库依据,仅供参考。涉及健康决策请咨询专业营养师或医生。
               </span>
+            </div>
+            <!-- 风险筛查:可点快捷选项(仅最新一条可点,点一下即作答) -->
+            <div
+              v-if="m.role === 'assistant' && m.quickReplies && m.quickReplies.length && i === messages.length - 1"
+              class="quick-replies"
+            >
+              <button
+                v-for="q in m.quickReplies"
+                :key="q"
+                type="button"
+                class="quick-reply"
+                :disabled="loading"
+                @click="send(q)"
+              >
+                {{ q }}
+              </button>
             </div>
           </div>
           <n-avatar v-if="m.role === 'user'" round class="avatar" :src="userAvatar" color="#e8eef0" />
@@ -757,6 +784,33 @@ function onLogout() {
 .disclaimer-text b {
   color: #7a5600;
   font-weight: 700;
+}
+
+/* 风险筛查快捷选项 */
+.quick-replies {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.quick-reply {
+  font-size: 13px;
+  color: #2f8b89;
+  background: #eef6f5;
+  border: 1px solid #cfe6e4;
+  border-radius: 999px;
+  padding: 6px 14px;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.quick-reply:hover:not(:disabled) {
+  background: #2f8b89;
+  color: #fff;
+  border-color: #2f8b89;
+}
+.quick-reply:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* 头像可点 + 选择器网格 */
