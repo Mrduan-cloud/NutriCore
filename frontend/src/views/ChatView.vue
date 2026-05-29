@@ -140,6 +140,11 @@ async function send(text?: string) {
   if (!content || loading.value) return;
 
   const conv = convStore.active();
+  // 本轮之前的历史(纯文本、最近 12 条),供后端多轮场景(如 NRS-2002 续轮)
+  const history = conv.messages
+    .filter((m) => m.content)
+    .slice(-12)
+    .map((m) => ({ role: m.role, content: m.content }));
   conv.messages.push({ role: "user", content });
   // 占位 assistant 消息,流式往里填;取回 reactive 代理引用
   conv.messages.push({ role: "assistant", content: "", citations: [], usedTools: [], chart: null });
@@ -156,7 +161,7 @@ async function send(text?: string) {
         "Content-Type": "application/json",
         Authorization: `Bearer ${auth.token}`,
       },
-      body: JSON.stringify({ message: content }),
+      body: JSON.stringify({ message: content, history }),
     });
     if (resp.status === 401) {
       auth.logout();
