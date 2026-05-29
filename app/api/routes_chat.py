@@ -163,6 +163,9 @@ async def chat_stream(
                 chart = ((out.get("extra") or {}).get("insight") or {}).get("echarts_option")
                 if isinstance(chart, dict) and not chart.get("noData"):
                     done["chart"] = chart
+                # 风险筛查:把可点选项随 done 事件下发,前端渲染快捷按钮
+                if out.get("quick_replies"):
+                    done["quick_replies"] = out["quick_replies"]
                 yield _sse(done)
                 return
 

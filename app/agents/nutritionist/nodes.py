@@ -199,6 +199,58 @@ def _screening_in_progress(state: dict[str, Any]) -> bool:
     return False
 
 
+async def _recent_weight_trend(user_id: str) -> dict[str, Any] | None:
+    """读取用户近期体重记录,算出趋势(供 NRS-2002 预填「营养状态」一项)。
+
+    返回 {first,last,delta,days} 或 None(无足够数据)。失败静默返回 None,
+    筛查会退化为向用户提问,不影响主流程。
+    """
+    try:
+        from app.schemas.models import Vitals
+
+        rows = (
+            await Vitals.filter(user_id=user_id)
+            .order_by("date")
+            .values("date", "weight_kg")
+        )
+        pts = [(r["date"], r["weight_kg"]) for r in rows if r.get("weight_kg") is not None]
+        if len(pts) < 2:
+            return None
+        first, last = pts[0][1], pts[-1][1]
+        return {
+            "first": round(first, 1),
+            "last": round(last, 1),
+            "delta": round(last - first, 1),
+            "days": (pts[-1][0] - pts[0][0]).days,
+        }
+    except Exception as e:  # noqa: BLE001
+        logger.debug("weight trend lookup failed: {}", e)
+        return None
+
+
+async def _build_screening_known(user_id: str, profile: dict[str, Any]) -> str:
+    """汇总 NRS-2002 可预填的「已知信息」(档案 + 近期体重趋势),喂给筛查 LLM。"""
+    parts: list[str] = []
+    age = profile.get("age")
+    if age is not None:
+        parts.append(f"年龄:{age} 岁（{'≥70,+1 分' if age >= 70 else '<70,0 分'}）")
+    cd = profile.get("chronic_diseases") or []
+    parts.append(f"慢性病史:{'、'.join(map(str, cd)) if cd else '无记录'}")
+    bmi = profile.get("bmi")
+    if bmi:
+        parts.append(f"BMI:{bmi}")
+    trend = await _recent_weight_trend(user_id)
+    if trend:
+        direction = "下降" if trend["delta"] < 0 else ("上升" if trend["delta"] > 0 else "持平")
+        parts.append(
+            f"近 {trend['days']} 天体重:{trend['first']} → {trend['last']} kg"
+            f"(较前{direction} {abs(trend['delta'])} kg)"
+        )
+    else:
+        parts.append("近期体重记录:暂无")
+    return "\n".join(f"- {p}" for p in parts)
+
+
 async def intent_router(state: dict[str, Any]) -> dict[str, Any]:
     """三层意图分类:高风险 gate → 规则关键词 → LLM 兜底。
 
@@ -275,18 +327,23 @@ async def subagent_dispatcher(state: dict[str, Any]) -> dict[str, Any]:
     last_msg = _last_user_text(state)
 
     if sub == "risk_screening":
-        # LLM 驱动的多轮 NRS-2002:看完整对话,信息够就算分、不够只追问缺失项。
-        age = profile.get("age")
+        # 数据预填 + LLM 驱动的多轮 NRS-2002:先把档案/体重趋势喂进去,能推断的子项
+        # 不再问用户;每次只问一个缺失项并给可点选项(前端渲染快捷按钮)。
+        known = await _build_screening_known(user_id, profile)
         convo = _conversation_text(state) or f"用户:{last_msg}"
         prompt = (
-            f"用户年龄:{age if age is not None else '未知'}\n\n"
-            f"对话记录:\n{convo}\n\n"
-            "请按 NRS-2002 推进:信息足够则给出三项子分 + 总分 + 风险判定与建议;"
-            "信息不足则只针对缺失项简短追问(不要整段重复开场白)。"
+            f"【已知信息】\n{known}\n\n"
+            f"【对话记录】\n{convo}\n\n"
+            "请按规则推进:能从已知信息预填的子项别再问;只问一个仍缺失的项并给选项;"
+            "信息足够就直接给三项子分 + 总分 + 判定。"
         )
         try:
-            answer = await chat_complete(
-                prompt, system=SCREENING_SYSTEM, temperature=0.2, max_tokens=600
+            raw = await chat_complete(
+                prompt,
+                system=SCREENING_SYSTEM,
+                response_format="json",
+                temperature=0.2,
+                max_tokens=600,
             )
         except Exception:  # noqa: BLE001
             logger.bind(request_id=state.get("request_id", "-"), user_id=user_id).exception(
@@ -294,14 +351,24 @@ async def subagent_dispatcher(state: dict[str, Any]) -> dict[str, Any]:
             )
             agent_invocations.labels(agent="subagent_dispatcher", outcome="screening_error").inc()
             return {"final_answer": "营养风险筛查暂时不可用,稍后再试。"}
-        ans = (answer or "").strip() or (
-            "我们来做 NRS-2002 营养风险筛查。请告诉我:近 1-3 个月体重变化、"
-            "近一周进食量是否减少、是否有正在治疗的疾病。"
-        )
-        # 固定标题:既统一展示,又作为「筛查进行中」的衔接标记(供下一轮路由识别)
+
+        data = _extract_json(raw)
+        ans = (data.get("message") or "").strip() or (raw or "").strip()
+        quick = data.get("quick_replies")
+        quick = [str(q) for q in quick] if isinstance(quick, list) else []
+        if not ans:
+            ans = (
+                "我们来做 NRS-2002 营养风险筛查。最近一周你的进食量比平时有变化吗?"
+            )
+            quick = quick or ["跟平时差不多", "减少约 1/4", "减少约一半", "几乎吃不下"]
+        # 固定标题:统一展示,同时作为「筛查进行中」的衔接标记(供下一轮路由识别)
         if "NRS-2002" not in ans:
             ans = "**NRS-2002 营养风险筛查**\n\n" + ans
-        return {"final_answer": ans, "tool_calls": [{"tool": "nrs2002_screening"}]}
+        return {
+            "final_answer": ans,
+            "quick_replies": quick,
+            "tool_calls": [{"tool": "nrs2002_screening"}],
+        }
 
     if sub == "meal_plan":
         from app.agents.meal_plan.generator import generate_meal_plan

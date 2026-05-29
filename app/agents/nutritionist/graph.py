@@ -28,6 +28,7 @@ class NutritionistState(TypedDict, total=False):
     citations: list[str]
     is_high_risk: bool
     final_answer: str | None
+    quick_replies: list[str]
     extra: dict
     request_id: str
 
