@@ -168,7 +168,7 @@ async function send(text?: string) {
         "Content-Type": "application/json",
         Authorization: `Bearer ${auth.token}`,
       },
-      body: JSON.stringify({ message: content, history }),
+      body: JSON.stringify({ message: content, session_id: conv.id, history }),
     });
     if (resp.status === 401) {
       auth.logout();

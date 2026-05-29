@@ -15,6 +15,7 @@ from app.agents.nutritionist.nodes import (
     safety_fallback,
     subagent_dispatcher,
 )
+from app.agents.nutritionist.memory import recent_turns, remember_turn
 from app.agents.nutritionist.prompts import CONSULT_SYSTEM
 from app.auth import CurrentUser, get_current_user
 from app.core.llm import chat_complete_stream
@@ -44,17 +45,31 @@ class ChatRequest(BaseModel):
     history: list[ChatTurn] | None = None
 
 
-def _build_messages(payload: ChatRequest) -> list:
-    """把历史 + 当前消息组装成 LangChain 消息序列(最多保留最近 12 轮历史)。"""
-    msgs: list = []
-    for turn in (payload.history or [])[-12:]:
-        content = (turn.content or "").strip()
+def _to_lc(turns: list[dict]) -> list:
+    """[{role,content}] → LangChain 消息序列。"""
+    out: list = []
+    for t in turns:
+        content = (t.get("content") or "").strip()
         if not content:
             continue
-        if turn.role == "assistant":
-            msgs.append(AIMessage(content=content))
+        if t.get("role") == "assistant":
+            out.append(AIMessage(content=content))
         else:
-            msgs.append(HumanMessage(content=content))
+            out.append(HumanMessage(content=content))
+    return out
+
+
+async def _build_messages(payload: ChatRequest, user_id: str) -> list:
+    """组装喂给图/节点的消息序列:短期记忆(Redis)优先,回退到前端传的 history。
+
+    - 后端有状态:同一 session 的历史由 Redis 维护,不依赖前端一定回传(更健壮);
+    - Redis 冷启动/不可用时,回退用前端 history,多轮场景仍可用;
+    - 末尾追加本轮用户消息。
+    """
+    prior = await recent_turns(user_id, payload.session_id)
+    if not prior and payload.history:
+        prior = [{"role": t.role, "content": t.content} for t in payload.history[-2 * 6 :]]
+    msgs = _to_lc(prior)
     msgs.append(HumanMessage(content=payload.message))
     return msgs
 
@@ -79,7 +94,7 @@ async def chat_with_nutritionist(
     profile = profile_row.to_dict() if profile_row else {"user_id": user.user_id}
 
     state = {
-        "messages": _build_messages(payload),
+        "messages": await _build_messages(payload, user.user_id),
         "user_id": user.user_id,
         "user_profile": profile,
         "request_id": getattr(request.state, "request_id", None),
@@ -90,8 +105,12 @@ async def chat_with_nutritionist(
     if out.get("user_profile") and out["user_profile"] != profile:
         await UserProfileModel.upsert_from_dict(out["user_profile"])
 
+    answer = out.get("final_answer") or "（无回复）"
+    # 写入短期记忆(本轮 user + assistant),供后续轮次记住上下文
+    await remember_turn(user.user_id, payload.session_id, payload.message, answer)
+
     return ChatResponse(
-        answer=out.get("final_answer") or "（无回复）",
+        answer=answer,
         citations=out.get("citations") or [],
         used_tools=[c.get("tool") for c in out.get("tool_calls") or [] if c.get("tool")],
         is_high_risk=bool(out.get("is_high_risk")),
@@ -125,7 +144,7 @@ async def chat_stream(
     profile_row = await UserProfileModel.filter(user_id=user.user_id).first()
     profile = profile_row.to_dict() if profile_row else {"user_id": user.user_id}
     state = {
-        "messages": _build_messages(payload),
+        "messages": await _build_messages(payload, user.user_id),
         "user_id": user.user_id,
         "user_profile": profile,
         "request_id": getattr(request.state, "request_id", None),
@@ -143,15 +162,18 @@ async def chat_stream(
             # 2. 高风险 → 安全兜底(分块发)
             if is_high_risk:
                 out = await safety_fallback(state)
-                for piece in _chunks(out.get("final_answer", "")):
+                answer = out.get("final_answer", "")
+                for piece in _chunks(answer):
                     yield _sse({"type": "delta", "content": piece})
                 yield _sse({"type": "done", "citations": [], "used_tools": []})
+                await remember_turn(user.user_id, payload.session_id, payload.message, answer)
                 return
 
             # 3. 命中子 Agent(plan/screening/insight)→ 跑子 Agent,结果分块发
             if routing.get("selected_subagent"):
                 out = await subagent_dispatcher(state)
-                for piece in _chunks(out.get("final_answer", "")):
+                answer = out.get("final_answer", "")
+                for piece in _chunks(answer):
                     yield _sse({"type": "delta", "content": piece})
                 used = [c.get("tool") for c in out.get("tool_calls") or [] if c.get("tool")]
                 done = {
@@ -167,16 +189,22 @@ async def chat_stream(
                 if out.get("quick_replies"):
                     done["quick_replies"] = out["quick_replies"]
                 yield _sse(done)
+                await remember_turn(user.user_id, payload.session_id, payload.message, answer)
                 return
 
             # 4. consult → RAG 检索接地 + 真·逐 token 流式
             #    先检索(拿到真实引用),再流式作答,引用在 done 事件回传
             prompt, citations = await build_consult_prompt(payload.message, profile)
+            acc: list[str] = []
             async for tok in chat_complete_stream(
                 prompt, system=CONSULT_SYSTEM, temperature=0.3, max_tokens=600
             ):
+                acc.append(tok)
                 yield _sse({"type": "delta", "content": tok})
             yield _sse({"type": "done", "citations": citations, "used_tools": []})
+            await remember_turn(
+                user.user_id, payload.session_id, payload.message, "".join(acc)
+            )
         except Exception as e:  # noqa: BLE001
             yield _sse({"type": "error", "message": f"服务暂时不可用:{e.__class__.__name__}"})
 

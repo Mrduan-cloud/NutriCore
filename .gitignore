@@ -55,3 +55,6 @@ checkpoints/
 milvus_data/
 minio_data/
 mysql_data/
+
+# Claude Code local preview config
+.claude/
