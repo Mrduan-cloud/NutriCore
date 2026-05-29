@@ -107,7 +107,13 @@ def _extract_json(text: str) -> dict:
         return {}
 
 
-def _format_known(profile: dict[str, Any], weight_trend: dict | None) -> str:
+def _format_known(profile: dict[str, Any]) -> str:
+    """可用于槽位抽取的「已知信息」。
+
+    注意:**不放近期体重趋势**——它通常只有十来天,不足以判断 NRS-2002 的近 1-3 个月
+    体重变化;若放进来,LLM 容易据此把 weight_loss_band 误填成 "none",导致「没问体重
+    却判无下降」。体重一项一律向用户确认(趋势仅在提问时作为友好提示展示)。
+    """
     parts: list[str] = []
     age = profile.get("age")
     if age is not None:
@@ -117,12 +123,6 @@ def _format_known(profile: dict[str, Any], weight_trend: dict | None) -> str:
     bmi = profile.get("bmi")
     if bmi:
         parts.append(f"BMI:{bmi}")
-    if weight_trend:
-        parts.append(
-            f"近 {weight_trend['days']} 天体重记录:"
-            f"{weight_trend['first']} → {weight_trend['last']} kg"
-            f"(变化 {weight_trend['delta']:+} kg,仅供参考,不足以判断 1-3 个月趋势)"
-        )
     return "\n".join(f"- {p}" for p in parts)
 
 
@@ -190,9 +190,10 @@ def _format_result(report, slots: dict[str, str], answer: NRSAnswer) -> str:
     return "\n".join(lines)
 
 
-def _ask(slot: str) -> dict[str, Any]:
+def _ask(slot: str, hint: str = "") -> dict[str, Any]:
     q = SLOT_QUESTIONS[slot]
-    return {"message": q["message"], "quick_replies": list(q["quick_replies"]), "complete": False}
+    msg = (hint + "\n\n" + q["message"]) if hint else q["message"]
+    return {"message": msg, "quick_replies": list(q["quick_replies"]), "complete": False}
 
 
 async def screen_step(
@@ -203,10 +204,20 @@ async def screen_step(
     - 仍有关键槽位缺失 → 就该项发问(带可点选项)
     - 槽位齐全 → 用 compute_nrs2002 确定性算分并格式化
     """
-    known = _format_known(profile, weight_trend)
+    known = _format_known(profile)
     slots = await _extract_slots(known, conversation)
 
-    for slot in ("weight_loss_band", "intake_band", "disease_band"):
+    if slots.get("weight_loss_band", "unknown") == "unknown":
+        # 体重必须用户确认;近期体重记录(若有)仅作友好提示,不参与判分
+        hint = ""
+        if weight_trend:
+            hint = (
+                f"_(系统记录:近 {weight_trend['days']} 天体重 "
+                f"{weight_trend['first']}→{weight_trend['last']} kg,基本稳定;"
+                f"营养筛查看的是近 1-3 个月,请据此回答)_"
+            )
+        return _ask("weight_loss_band", hint)
+    for slot in ("intake_band", "disease_band"):
         if slots.get(slot, "unknown") == "unknown":
             return _ask(slot)
 
