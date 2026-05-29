@@ -5,7 +5,7 @@ import json
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage
 from pydantic import BaseModel
 
 from app.agents.nutritionist.graph import build_nutritionist_graph
@@ -32,9 +32,31 @@ def _get_graph():
     return _graph
 
 
+class ChatTurn(BaseModel):
+    role: str  # "user" | "assistant"
+    content: str
+
+
 class ChatRequest(BaseModel):
     message: str
     session_id: str | None = None
+    # 最近若干轮对话历史(前端传入),用于多轮场景(如 NRS-2002 续轮筛查)
+    history: list[ChatTurn] | None = None
+
+
+def _build_messages(payload: ChatRequest) -> list:
+    """把历史 + 当前消息组装成 LangChain 消息序列(最多保留最近 12 轮历史)。"""
+    msgs: list = []
+    for turn in (payload.history or [])[-12:]:
+        content = (turn.content or "").strip()
+        if not content:
+            continue
+        if turn.role == "assistant":
+            msgs.append(AIMessage(content=content))
+        else:
+            msgs.append(HumanMessage(content=content))
+    msgs.append(HumanMessage(content=payload.message))
+    return msgs
 
 
 class ChatResponse(BaseModel):
@@ -57,7 +79,7 @@ async def chat_with_nutritionist(
     profile = profile_row.to_dict() if profile_row else {"user_id": user.user_id}
 
     state = {
-        "messages": [HumanMessage(content=payload.message)],
+        "messages": _build_messages(payload),
         "user_id": user.user_id,
         "user_profile": profile,
         "request_id": getattr(request.state, "request_id", None),
@@ -103,7 +125,7 @@ async def chat_stream(
     profile_row = await UserProfileModel.filter(user_id=user.user_id).first()
     profile = profile_row.to_dict() if profile_row else {"user_id": user.user_id}
     state = {
-        "messages": [HumanMessage(content=payload.message)],
+        "messages": _build_messages(payload),
         "user_id": user.user_id,
         "user_profile": profile,
         "request_id": getattr(request.state, "request_id", None),

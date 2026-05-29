@@ -8,7 +8,7 @@ from typing import Any
 from loguru import logger
 
 from app.agents.nutritionist.memory import extract_entities, merge_profile
-from app.agents.nutritionist.prompts import CONSULT_SYSTEM, INTENT_PROMPT
+from app.agents.nutritionist.prompts import CONSULT_SYSTEM, INTENT_PROMPT, SCREENING_SYSTEM
 from app.core.llm import chat_complete
 from app.observability.metrics import agent_invocations
 
@@ -143,6 +143,62 @@ def _last_user_text(state: dict[str, Any]) -> str:
     return ""
 
 
+def _msg_text(msg: Any) -> str:
+    """提取单条消息的纯文本(兼容多模态 list[dict] 与 dict 形态)。"""
+    content = getattr(msg, "content", None)
+    if content is None and isinstance(msg, dict):
+        content = msg.get("content")
+    if isinstance(content, list):
+        parts: list[str] = []
+        for part in content:
+            if isinstance(part, dict) and part.get("type") == "text":
+                t = part.get("text", "")
+                if isinstance(t, str):
+                    parts.append(t)
+            elif isinstance(part, str):
+                parts.append(part)
+        content = " ".join(parts).strip()
+    return content if isinstance(content, str) else ""
+
+
+def _msg_role(msg: Any) -> str:
+    """归一化消息角色为 human / ai / system。"""
+    t = getattr(msg, "type", None)
+    if t in ("human", "ai", "system"):
+        return t
+    cls = msg.__class__.__name__
+    if "Human" in cls:
+        return "human"
+    if "AI" in cls:
+        return "ai"
+    if isinstance(msg, dict):
+        role = msg.get("role", "")
+        return {"user": "human", "assistant": "ai"}.get(role, role)
+    return ""
+
+
+def _conversation_text(state: dict[str, Any], limit: int = 12) -> str:
+    """把最近若干轮对话渲染成「用户/营养师」transcript,供需要上下文的节点使用。"""
+    lines: list[str] = []
+    for msg in (state.get("messages", []) or [])[-limit:]:
+        text = _msg_text(msg)
+        if not text:
+            continue
+        who = {"human": "用户", "ai": "营养师"}.get(_msg_role(msg))
+        if who:
+            lines.append(f"{who}:{text}")
+    return "\n".join(lines)
+
+
+def _screening_in_progress(state: dict[str, Any]) -> bool:
+    """最近一条营养师消息是否处于 NRS-2002 筛查流程中(用于多轮衔接路由)。"""
+    for msg in reversed(state.get("messages", []) or []):
+        if _msg_role(msg) == "ai":
+            text = _msg_text(msg)
+            return ("NRS-2002" in text) or ("营养风险筛查" in text)
+    return False
+
+
 async def intent_router(state: dict[str, Any]) -> dict[str, Any]:
     """三层意图分类:高风险 gate → 规则关键词 → LLM 兜底。
 
@@ -157,14 +213,28 @@ async def intent_router(state: dict[str, Any]) -> dict[str, Any]:
     Metric label outcome 一律落在 INTENT_TO_AGENT 白名单内,防 cardinality 爆炸。
     """
     last_msg = _last_user_text(state)
+    in_screening = _screening_in_progress(state)
 
     # ---- 第 1 层:高风险 gate ----
-    if _is_high_risk(last_msg):
+    # 平时:急重症 + 临床慢病/用药 任一命中即兜底就医。
+    # 筛查进行中:只拦「急重症/孕产」这类必须立刻就医的;"疾病/治疗"等词是 NRS-2002
+    #   问答的正常组成(用户常回答"没有正在治疗的疾病"),交给筛查节点处理,避免误兜底。
+    acute = any(k in last_msg for k in ACUTE_RISK_KEYWORDS)
+    clinical = any(k in last_msg for k in CLINICAL_KEYWORDS)
+    if acute or (clinical and not in_screening):
         agent_invocations.labels(agent="intent_router", outcome="high_risk").inc()
         return {"intent": "risk_alert", "selected_subagent": None, "is_high_risk": True}
 
     # ---- 第 2 层:规则关键词分类 ----
     rule_intent = _classify_by_rules(last_msg)
+
+    # 多轮衔接:筛查进行中且本句没有命中其它意图关键词(多半是用户在回答筛查问题)
+    # → 继续走 screening,避免「回答被当成新问题、重复开场白」。
+    if rule_intent is None and in_screening:
+        agent_invocations.labels(agent="intent_router", outcome="rule:screening_continue").inc()
+        logger.debug("intent_router: screening continuation")
+        return {"intent": "screening", "selected_subagent": "risk_screening", "is_high_risk": False}
+
     if rule_intent is not None:
         # 规则结果走和 LLM 一样的白名单收敛 + metric 路径
         intent = rule_intent if rule_intent in INTENT_TO_AGENT else "consult"
@@ -205,18 +275,33 @@ async def subagent_dispatcher(state: dict[str, Any]) -> dict[str, Any]:
     last_msg = _last_user_text(state)
 
     if sub == "risk_screening":
-        return {
-            "final_answer": (
-                "我可以帮你做 **NRS-2002 营养风险筛查**。它从「疾病严重程度 + 营养状态 + 年龄」"
-                "三个维度评分,帮你判断是否存在营养风险。\n\n"
-                "我们从几个问题开始:\n"
-                "1. 你最近 3 个月体重有没有明显下降?大概多少 kg?\n"
-                "2. 最近一周进食量比平时减少了吗?\n"
-                "3. 目前有没有正在治疗的疾病?\n\n"
-                "把这几项告诉我,我来给你算分并解读。"
-            ),
-            "tool_calls": [{"tool": "risk_screening_intro"}],
-        }
+        # LLM 驱动的多轮 NRS-2002:看完整对话,信息够就算分、不够只追问缺失项。
+        age = profile.get("age")
+        convo = _conversation_text(state) or f"用户:{last_msg}"
+        prompt = (
+            f"用户年龄:{age if age is not None else '未知'}\n\n"
+            f"对话记录:\n{convo}\n\n"
+            "请按 NRS-2002 推进:信息足够则给出三项子分 + 总分 + 风险判定与建议;"
+            "信息不足则只针对缺失项简短追问(不要整段重复开场白)。"
+        )
+        try:
+            answer = await chat_complete(
+                prompt, system=SCREENING_SYSTEM, temperature=0.2, max_tokens=600
+            )
+        except Exception:  # noqa: BLE001
+            logger.bind(request_id=state.get("request_id", "-"), user_id=user_id).exception(
+                "risk_screening LLM failed"
+            )
+            agent_invocations.labels(agent="subagent_dispatcher", outcome="screening_error").inc()
+            return {"final_answer": "营养风险筛查暂时不可用,稍后再试。"}
+        ans = (answer or "").strip() or (
+            "我们来做 NRS-2002 营养风险筛查。请告诉我:近 1-3 个月体重变化、"
+            "近一周进食量是否减少、是否有正在治疗的疾病。"
+        )
+        # 固定标题:既统一展示,又作为「筛查进行中」的衔接标记(供下一轮路由识别)
+        if "NRS-2002" not in ans:
+            ans = "**NRS-2002 营养风险筛查**\n\n" + ans
+        return {"final_answer": ans, "tool_calls": [{"tool": "nrs2002_screening"}]}
 
     if sub == "meal_plan":
         from app.agents.meal_plan.generator import generate_meal_plan
