@@ -412,6 +412,7 @@ function onLogout() {
               v-if="m.role === 'assistant' && m.quickReplies && m.quickReplies.length && i === messages.length - 1"
               class="quick-replies"
             >
+              <span v-if="m.intent === 'insight'" class="qr-hint">💡 换个角度看,点一下试试:</span>
               <button
                 v-for="q in m.quickReplies"
                 :key="q"
@@ -938,12 +939,19 @@ function onLogout() {
   font-weight: 700;
 }
 
-/* 风险筛查快捷选项 */
+/* 风险筛查快捷选项 / 数据洞察示例问题 */
 .quick-replies {
   margin-top: 12px;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  align-items: center;
+}
+.qr-hint {
+  width: 100%;
+  font-size: 12px;
+  color: #9ca3af;
+  margin-bottom: 2px;
 }
 .quick-reply {
   font-size: 13px;

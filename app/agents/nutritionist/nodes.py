@@ -62,6 +62,15 @@ INTENT_KEYWORDS: dict[str, tuple[str, ...]] = {
     ),
 }
 
+# 数据洞察的「换个角度问」示例 —— 覆盖四类图(折线/环形/雷达/柱),
+# 解决用户"不知道能问什么、怎么描述"。随每次洞察答复以可点芯片下发。
+_INSIGHT_EXAMPLES = [
+    "我最近的体重变化趋势",          # → 折线
+    "三大营养素(碳水/蛋白/脂肪)占比",  # → 环形
+    "我的各项营养摄入均衡吗",        # → 雷达
+    "近一周每天的步数对比",          # → 柱状
+]
+
 # 用户可见的兜底文案 —— 不要泄漏 stacktrace / 内部组件名
 _SUBAGENT_FAILURE_MESSAGES = {
     "meal_plan": "营养方案暂时不可用,稍后再试。如反复出现请联系管理员。",
@@ -349,10 +358,13 @@ async def subagent_dispatcher(state: dict[str, Any]) -> dict[str, Any]:
         from app.agents.data_insight.dify_client import run_workflow
         try:
             result = await run_workflow(last_msg, user_id)
+            # 附上「换个角度问」示例(各自触发不同图表),解决"不知道能问什么"
+            examples = [e for e in _INSIGHT_EXAMPLES if e != last_msg.strip()][:4]
             return {
                 "final_answer": _format_insight_md(result),
                 "tool_calls": [{"tool": "data_insight.query"}],
                 "extra": {"insight": result},
+                "quick_replies": examples,
             }
         except Exception:
             logger.bind(request_id=state.get("request_id", "-"), user_id=user_id).exception(
