@@ -17,6 +17,7 @@ from app.api import (
     routes_plan,
     routes_profile,
     routes_screening,
+    routes_share,
 )
 from app.auth.bootstrap import ensure_auth_seed
 from app.config import get_settings
@@ -85,6 +86,8 @@ def create_app() -> FastAPI:
     app.include_router(routes_plan.router, prefix="/api/plan", tags=["个性化营养方案"])
     app.include_router(routes_insight.router, prefix="/api/insight", tags=["健康数据洞察"])
     app.include_router(routes_profile.router, prefix="/api/profile", tags=["用户画像"])
+    # 公开分享:无鉴权,凭 token 只读快照
+    app.include_router(routes_share.router, prefix="/api/share", tags=["公开分享"])
 
     if s.metrics_enabled:
         app.add_api_route(s.metrics_path, metrics_endpoint, methods=["GET"], include_in_schema=False)

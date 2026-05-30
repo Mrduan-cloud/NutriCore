@@ -2,11 +2,14 @@
 from __future__ import annotations
 
 import json
+import secrets
+import uuid
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
 from langchain_core.messages import AIMessage, HumanMessage
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.agents.nutritionist.graph import build_nutritionist_graph
 from app.agents.nutritionist.memory import recent_turns, remember_turn
@@ -19,7 +22,7 @@ from app.agents.nutritionist.nodes import (
 from app.agents.nutritionist.prompts import CONSULT_SYSTEM
 from app.auth import CurrentUser, get_current_user
 from app.core.llm import chat_complete_stream
-from app.schemas.models import UserProfileModel
+from app.schemas.models import AuditLog, SharedSnapshot, UserProfileModel
 
 router = APIRouter()
 
@@ -224,3 +227,84 @@ def _chunks(text: str, size: int = 24):
     """把整段文本切成小块,模拟流式(给非 LLM-流式的结果用)。"""
     for i in range(0, len(text), size):
         yield text[i : i + size]
+
+
+# ============ 用户反馈 ============
+# 前端动作栏的 👍 / 👎 走这里:用户主观评价 → 落 AuditLog,形成"反馈→审计"小闭环。
+# 同步存,但失败也不影响用户体验(前端 fire-and-forget + localStorage 兜底)。
+
+
+class FeedbackRequest(BaseModel):
+    rating: Literal["up", "down"]
+    session_id: str | None = None
+    intent: str | None = None  # 答这条的子 Agent(consult/screening/plan/insight/...)
+    question: str | None = Field(None, max_length=2000)
+    # 仅取摘要,避免把整段答复塞进审计表;前端只发摘要也行
+    answer_excerpt: str | None = Field(None, max_length=500)
+
+
+@router.post("/feedback")
+async def submit_feedback(
+    payload: FeedbackRequest,
+    user: Annotated[CurrentUser, Depends(get_current_user)],
+) -> dict:
+    """记录用户对某条 AI 回复的 👍/👎。
+
+    写入 AuditLog 而不是单独建表:
+    - 审计表已有 user_id / action / payload / created_at 四字段,正好够用
+    - 复用现有审计基础设施(查询 / 导出 / 保留策略),不增表负担
+    - 后续要做反馈聚合时,SQL 一句 group by 即可
+    """
+    await AuditLog.create(
+        request_id=uuid.uuid4().hex,
+        user_id=user.user_id,
+        action="chat.feedback",
+        payload={
+            "rating": payload.rating,
+            "session_id": payload.session_id,
+            "intent": payload.intent,
+            "question": (payload.question or "")[:500],
+            "answer_excerpt": payload.answer_excerpt or "",
+        },
+    )
+    return {"ok": True}
+
+
+# ============ 对话片段公开分享 ============
+# 用户点「分享」时生成不可猜 token,返回公开页路径 `/s/{token}`。
+# 公开访问的 GET 端点放在 app/api/routes_share.py(独立挂载,不需登录)。
+
+
+class ShareCreateRequest(BaseModel):
+    question: str = Field(..., max_length=5000)
+    answer: str = Field(..., max_length=20000)
+    intent: str | None = Field(None, max_length=32)
+    citations: list[str] | None = None
+    # 数据洞察:把图表 option 一并带上,公开页可复现同一张图
+    charts: list[dict[str, Any]] | None = None
+    chart_type: str | None = Field(None, max_length=16)
+
+
+@router.post("/share", status_code=201)
+async def create_share(
+    payload: ShareCreateRequest,
+    user: Annotated[CurrentUser, Depends(get_current_user)],
+) -> dict:
+    """生成一份对话片段快照,返回公开访问 token / 路径。
+
+    - token 用 secrets.token_urlsafe(16) 不可猜
+    - 快照只含 Q&A + 引用 + 图表;**不含 user_id / 用户画像 / 对话历史**
+    - 公开页路由由前端在 /s/{token} 处理(未登录也能访问)
+    """
+    token = secrets.token_urlsafe(16)
+    await SharedSnapshot.create(
+        token=token,
+        created_by=user.user_id,
+        question=payload.question,
+        answer=payload.answer,
+        intent=payload.intent,
+        citations=payload.citations or [],
+        charts=payload.charts,
+        chart_type=payload.chart_type,
+    )
+    return {"token": token, "path": f"/s/{token}"}

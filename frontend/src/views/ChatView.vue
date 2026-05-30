@@ -12,9 +12,11 @@ import {
   NModal,
 } from "naive-ui";
 import MarkdownIt from "markdown-it";
+import client from "@/api/client";
 import { useAuthStore } from "@/stores/auth";
 import { useConversationStore, type ChatMessage } from "@/stores/conversations";
 import EchartBlock from "@/components/EchartBlock.vue";
+import ShareDialog from "@/components/ShareDialog.vue";
 
 // Markdown 渲染器:html:false 防 XSS,breaks:false 避免单换行变 <br> 撑大间距
 const md = new MarkdownIt({ html: false, linkify: true, breaks: false });
@@ -124,9 +126,8 @@ function activeChart(m: ChatMessage): Record<string, any> | null {
   return m.chart || null;
 }
 
-// 复制消息内容到剪贴板(secure context 用 Clipboard API,否则回退 execCommand)
-async function copyMessage(m: ChatMessage) {
-  const text = m.content || "";
+// 复制工具:secure context 用 Clipboard API,否则回退 execCommand
+async function copyText(text: string): Promise<boolean> {
   try {
     if (navigator.clipboard && window.isSecureContext) {
       await navigator.clipboard.writeText(text);
@@ -140,9 +141,99 @@ async function copyMessage(m: ChatMessage) {
       document.execCommand("copy");
       document.body.removeChild(ta);
     }
-    message.success("已复制");
+    return true;
   } catch {
-    message.warning("复制失败,请手动选择");
+    return false;
+  }
+}
+
+async function copyMessage(m: ChatMessage) {
+  const ok = await copyText(m.content || "");
+  if (ok) message.success("已复制");
+  else message.warning("复制失败,请手动选择");
+}
+
+// 找到这条 assistant 回复对应的、紧邻其前的用户提问
+function priorUserMessage(m: ChatMessage): ChatMessage | null {
+  const conv = convStore.list.find((c) => c.id === convStore.activeId);
+  if (!conv) return null;
+  const idx = conv.messages.indexOf(m);
+  for (let i = idx - 1; i >= 0; i--) {
+    if (conv.messages[i].role === "user") return conv.messages[i];
+  }
+  return null;
+}
+
+// 分享:走后端 POST /api/chat/share → 拿到不可猜 token → 打开渠道选择弹窗。
+// 公开页 /s/{token} 可被任何人(无需登录)看到这一问一答。
+const shareOpen = ref(false);
+const shareLoading = ref(false);
+const shareUrl = ref("");
+const shareTitle = ref("");
+
+async function shareMessage(m: ChatMessage) {
+  const u = priorUserMessage(m);
+  // 快照标题取问题前 60 字,方便社交平台默认文案
+  shareTitle.value = (u?.content || m.content || "NutriCore AI 营养师").slice(0, 60);
+  shareUrl.value = "";
+  shareLoading.value = true;
+  shareOpen.value = true;
+  try {
+    const { data } = await client.post("/api/chat/share", {
+      question: u?.content || "",
+      answer: m.content || "",
+      intent: m.intent || null,
+      citations: m.citations || [],
+      charts: m.charts && m.charts.length ? m.charts : null,
+      chart_type: m.chartType || null,
+    });
+    // 组装公开 URL(用 window.origin 适配本地/将来部署的不同域名)
+    shareUrl.value = `${window.location.origin}${data.path}`;
+  } catch (e: any) {
+    shareOpen.value = false;
+    message.error(e?.response?.data?.detail || "生成分享链接失败,请重试");
+  } finally {
+    shareLoading.value = false;
+  }
+}
+
+// 重新生成:只允许在最后一条 assistant 上,否则会破坏后续上下文。
+// 实现:回退到对应的用户提问 → 删掉「问+原答」→ 调 send() 重新走一遍流。
+async function regenerate(m: ChatMessage) {
+  if (loading.value) return;
+  const conv = convStore.active();
+  const idx = conv.messages.indexOf(m);
+  if (idx < 1) return;
+  let userIdx = idx - 1;
+  while (userIdx >= 0 && conv.messages[userIdx].role !== "user") userIdx--;
+  if (userIdx < 0) return;
+  const userText = conv.messages[userIdx].content;
+  conv.messages.splice(userIdx);
+  await send(userText);
+}
+
+function rate(m: ChatMessage, value: "up" | "down") {
+  // 反复点同一档 = 取消;切换档位则覆盖
+  m.rating = m.rating === value ? undefined : value;
+  convStore.save();
+  if (m.rating === "up") message.success("感谢反馈 👍");
+  else if (m.rating === "down") message.info("已记录,我们会改进 🙏");
+
+  // 落审计日志(fire-and-forget):上报失败也不影响本地 rating
+  if (m.rating) {
+    const conv = convStore.active();
+    const u = priorUserMessage(m);
+    client
+      .post("/api/chat/feedback", {
+        rating: m.rating,
+        session_id: conv.id,
+        intent: m.intent || null,
+        question: u?.content?.slice(0, 500) || null,
+        answer_excerpt: (m.content || "").slice(0, 500),
+      })
+      .catch(() => {
+        /* 静默:本地评分已保存,审计上报失败不打扰用户 */
+      });
   }
 }
 
@@ -426,22 +517,28 @@ function onLogout() {
             🥗
           </n-avatar>
           <div class="bubble" :class="m.role">
+            <!-- 用户气泡:复制按钮 hover 浮现在绿色气泡右上角(归属清晰) -->
             <button
-              v-if="m.content"
-              class="copy-btn"
-              :class="m.role"
+              v-if="m.role === 'user' && m.content"
+              class="copy-btn user"
               title="复制"
               @click="copyMessage(m)"
             >
               ⧉
             </button>
-            <div v-if="m.role === 'assistant' && m.intent" class="meta">
-              <n-tag size="small" :type="m.isHighRisk ? 'warning' : 'success'" :bordered="false">
-                {{ intentLabel[m.intent] || m.intent }}
-              </n-tag>
-              <n-tag v-for="t in m.usedTools" :key="t" size="small" type="info" :bordered="false">
-                🔧 {{ t }}
-              </n-tag>
+            <!-- 「营养师思路」过程轨迹 —— LangGraph 多 agent 调度链可视化(Hanako-inspired):
+                 intent_router → 子 agent → 工具调用,以灰斜体一行呈现,让多智能体协作"看得见"。 -->
+            <div v-if="m.role === 'assistant' && m.intent" class="process-trace">
+              <span class="pt-arrow">›</span>
+              <span
+                class="pt-step"
+                :class="{ 'pt-risk': m.isHighRisk }"
+              >intent_router → <b>{{ intentLabel[m.intent] || m.intent }}</b></span>
+              <template v-for="t in m.usedTools" :key="t">
+                <span class="pt-sep">·</span>
+                <span class="pt-step">{{ t }}</span>
+              </template>
+              <span v-if="m.isHighRisk" class="pt-tag pt-tag-risk">高风险</span>
             </div>
             <template v-if="m.role === 'assistant'">
               <div v-if="!m.content" class="thinking">
@@ -503,6 +600,67 @@ function onLogout() {
                 {{ q }}
               </button>
             </div>
+            <!-- AI 回复底部动作栏(Perplexity 风格):放在回复末尾,归属清晰、不与上方用户气泡混淆
+                 图标全部 monochrome stroke SVG(Feather 风格),与分享弹窗的品牌色 SVG 形成
+                 「主功能 monochrome / 渠道 brand-color」的视觉分层。 -->
+            <div
+              v-if="m.role === 'assistant' && m.content"
+              class="msg-actions"
+            >
+              <button class="msg-action" title="复制回复" @click="copyMessage(m)">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <rect x="9" y="9" width="11" height="11" rx="2"/>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                </svg>
+                <span class="msg-action-label">复制</span>
+              </button>
+              <button class="msg-action" title="生成可公开访问的分享链接" @click="shareMessage(m)">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <circle cx="18" cy="5" r="3"/>
+                  <circle cx="6" cy="12" r="3"/>
+                  <circle cx="18" cy="19" r="3"/>
+                  <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+                  <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+                </svg>
+                <span class="msg-action-label">分享</span>
+              </button>
+              <!-- 重新生成只在最后一条 assistant 上提供,避免破坏后续对话上下文 -->
+              <button
+                v-if="i === messages.length - 1"
+                class="msg-action"
+                :disabled="loading"
+                title="重新生成回复"
+                @click="regenerate(m)"
+              >
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <polyline points="23 4 23 10 17 10"/>
+                  <polyline points="1 20 1 14 7 14"/>
+                  <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+                </svg>
+                <span class="msg-action-label">重新生成</span>
+              </button>
+              <span class="msg-actions-spacer" />
+              <button
+                class="msg-action rate"
+                :class="{ active: m.rating === 'up' }"
+                title="有用"
+                @click="rate(m, 'up')"
+              >
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/>
+                </svg>
+              </button>
+              <button
+                class="msg-action rate"
+                :class="{ active: m.rating === 'down' }"
+                title="待改进"
+                @click="rate(m, 'down')"
+              >
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"/>
+                </svg>
+              </button>
+            </div>
           </div>
           <n-avatar v-if="m.role === 'user'" round class="avatar" :src="userAvatar" color="#e8eef0" />
         </div>
@@ -550,6 +708,14 @@ function onLogout() {
         </div>
       </div>
     </n-modal>
+
+    <!-- 分享对话框:链接 + 各社交渠道 intent URL -->
+    <share-dialog
+      v-model:show="shareOpen"
+      :url="shareUrl"
+      :title="shareTitle"
+      :loading="shareLoading"
+    />
   </div>
 </template>
 
@@ -808,8 +974,9 @@ function onLogout() {
   /* 底部留白:给悬浮输入区让位,最后一条消息能滚到其上方 */
   padding: 28px 24px 132px;
   width: 100%;
-  /* 高上限 + 居中:侧栏收起后内容填满宽度,只留小边距;窄屏自适应 */
-  max-width: 1680px;
+  /* Claude / ChatGPT 式居中阅读列:固定舒适宽度,两侧对称留白;
+     侧栏收起也只是对称居中,不会偏移、不会单侧空一大块。 */
+  max-width: 1000px;
   margin: 0 auto;
 }
 .welcome {
@@ -891,9 +1058,14 @@ function onLogout() {
 .row {
   display: flex;
   gap: 11px;
-  margin-bottom: 18px;
+  margin-bottom: 14px;
   align-items: flex-start;
   animation: bubble-in 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+/* 一个「turn」 = 用户问 + AI 答;turn 之间(=下一条 user)再加大间距,
+   视觉上明确分组,避免上一段答案的动作栏与下一段提问粘在一起。 */
+.row + .row.user {
+  margin-top: 28px;
 }
 @keyframes bubble-in {
   from {
@@ -915,10 +1087,11 @@ function onLogout() {
 .bubble {
   position: relative;
   max-width: 78%;
-  padding: 12px 16px;
+  padding: 14px 20px;
   border-radius: 16px;
-  line-height: 1.7;
-  font-size: 15px;
+  /* Perplexity 风格正文:更大字号 + 更舒展行高 */
+  line-height: 1.78;
+  font-size: 16px;
   white-space: pre-wrap;
   word-break: break-word;
 }
@@ -946,12 +1119,48 @@ function onLogout() {
 .bubble:hover .copy-btn {
   opacity: 1;
 }
-.copy-btn.assistant {
-  background: #eef2f2;
-  color: #5a6b69;
+/* AI 回复底部动作栏:Perplexity 风格 —— 放在回复末尾,归属清晰 */
+.msg-actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 14px;
+  padding-top: 6px;
 }
-.copy-btn.assistant:hover {
-  background: #dce6e4;
+.msg-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: transparent;
+  border: none;
+  color: #6b8b88;
+  font-size: 12.5px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.msg-action:hover {
+  background: rgba(20, 64, 63, 0.06);
+  color: #14403f;
+}
+.msg-action:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.msg-action-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+/* 把 👍 👎 推到右端,与复制/分享/重新生成形成「左主功能 / 右反馈」的视觉分组 */
+.msg-actions-spacer {
+  flex: 1 1 auto;
+}
+.msg-action.rate {
+  padding: 5px 8px;
+}
+.msg-action.rate.active {
+  background: rgba(47, 139, 137, 0.12);
+  color: #14403f;
 }
 .copy-btn.user {
   background: rgba(255, 255, 255, 0.22);
@@ -960,12 +1169,15 @@ function onLogout() {
 .copy-btn.user:hover {
   background: rgba(255, 255, 255, 0.38);
 }
+/* Perplexity 风格:AI 回复去掉白卡片,纯文本直接铺在页面背景上 */
 .bubble.assistant {
-  background: #fff;
-  color: #1f2937;
-  border-top-left-radius: 5px;
-  border: 1px solid #eef2f1;
-  box-shadow: 0 6px 20px rgba(16, 40, 39, 0.06);
+  background: transparent;
+  color: #1f333a;
+  letter-spacing: 0.1px;
+  padding: 2px 4px;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
 }
 .bubble.user {
   background: linear-gradient(135deg, #34948f 0%, #2a7d79 100%);
@@ -974,10 +1186,54 @@ function onLogout() {
   white-space: normal;
   box-shadow: 0 6px 18px rgba(42, 125, 121, 0.28);
 }
+/* 「营养师思路」过程轨迹 —— Hanako 式 `› ...` 灰斜体,把 LangGraph
+   多 agent 调度链以最低视觉权重呈现:用户读得到、又不抢答案焦点。 */
+.process-trace {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+  font-size: 12.5px;
+  color: #8a9b98;
+  font-style: italic;
+  font-family: ui-monospace, "SF Mono", "JetBrains Mono", Consolas, monospace;
+  line-height: 1.6;
+  letter-spacing: 0.1px;
+}
+.pt-arrow {
+  color: #b9c5c3;
+  font-style: normal;
+  font-weight: 700;
+}
+.pt-step b {
+  color: #2f8b89;
+  font-weight: 600;
+  font-style: normal;
+}
+.pt-step.pt-risk b {
+  color: #c1592a;
+}
+.pt-sep {
+  color: #c8d2d0;
+  font-style: normal;
+}
+.pt-tag {
+  font-style: normal;
+  font-size: 11px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-family: inherit;
+}
+.pt-tag-risk {
+  background: #fbeee5;
+  color: #c1592a;
+}
+
 .bubble .meta {
   display: flex;
   gap: 6px;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
   flex-wrap: wrap;
 }
 .thinking {
@@ -995,22 +1251,23 @@ function onLogout() {
 .markdown :deep(h2),
 .markdown :deep(h3),
 .markdown :deep(h4) {
-  font-size: 15px;
+  font-size: 16.5px;
   font-weight: 700;
-  margin: 10px 0 4px;
+  /* 每天之间留更大间距,分组更清晰(Perplexity 那种段落呼吸感) */
+  margin: 18px 0 8px;
   color: #14403f;
 }
 .markdown :deep(p) {
-  margin: 4px 0;
+  margin: 8px 0;
 }
 .markdown :deep(ul),
 .markdown :deep(ol) {
-  margin: 4px 0;
-  padding-left: 20px;
+  margin: 6px 0;
+  padding-left: 22px;
 }
 .markdown :deep(li) {
-  margin: 0;
-  line-height: 1.55;
+  margin: 5px 0;
+  line-height: 1.72;
 }
 .markdown :deep(li > p) {
   margin: 0;
@@ -1229,7 +1486,7 @@ function onLogout() {
   box-shadow: 0 8px 26px rgba(16, 40, 39, 0.12), 0 0 0 3px rgba(47, 139, 137, 0.16);
 }
 .cap-bar {
-  max-width: 1680px;
+  max-width: 1000px;
   margin: 0 auto;
   padding: 10px 24px 10px;
   display: flex;
@@ -1259,7 +1516,7 @@ function onLogout() {
   gap: 12px;
   align-items: flex-end;
   width: 100%;
-  max-width: 1680px;
+  max-width: 1000px;
   margin: 0 auto;
 }
 </style>
