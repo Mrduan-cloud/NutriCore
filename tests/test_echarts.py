@@ -43,6 +43,24 @@ def test_pie_value_alignment():
     assert [d["value"] for d in data] == [1, 2, 3]
 
 
+def test_balance_question_with_multi_nutrient_is_radar():
+    rows = [
+        {"date": "2026-05-01", "protein": 80, "carb": 260, "fat": 65, "water_ml": 1900},
+        {"date": "2026-05-02", "protein": 78, "carb": 250, "fat": 62, "water_ml": 1800},
+    ]
+    chart = rows_to_chart(rows, "我最近的营养摄入均衡吗")
+    assert _type(chart) == "radar"
+    # 实际(日均) + 推荐 两条
+    assert len(chart["series"][0]["data"]) == 2
+    assert {d["name"] for d in chart["series"][0]["data"]} == {"实际(日均)", "推荐"}
+
+
+def test_balance_question_without_enough_nutrients_falls_back():
+    # 只有 1 个营养指标(<3)→ 不出雷达,退回时间序列折线
+    rows = [{"date": "2026-05-01", "protein": 80}, {"date": "2026-05-02", "protein": 78}]
+    assert _type(rows_to_chart(rows, "蛋白质均衡吗")) == "line"
+
+
 def test_empty_rows_returns_no_data():
     assert rows_to_chart([], "x").get("noData") is True
 

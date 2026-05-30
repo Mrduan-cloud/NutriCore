@@ -13,9 +13,23 @@ from app.core.llm import chat_complete
 # 青绿系调色板:饼/柱多色时统一观感(line 用前端默认主色,无需在此指定)
 _PALETTE = ["#2F8B89", "#7FC8A9", "#5FB49C", "#9AD9C8", "#38918C", "#C9E8DF", "#1F6F6C"]
 
-# 意图关键词 → 图表类型(对话里问"占比/对比/趋势"等会改变选图)
+# 意图关键词 → 图表类型(对话里问"占比/对比/趋势/均衡"等会改变选图)
 _PIE_KW = ("占比", "构成", "比例", "分布", "组成", "结构")
 _BAR_KW = ("对比", "排名", "各", "分别", "最多", "最高", "最低", "每日", "每天", "哪天")
+_RADAR_KW = ("均衡", "雷达", "全面", "各营养素", "营养结构", "营养画像", "整体营养")
+
+# 每日推荐参考值(粗略基线,用于雷达「实际(日均) vs 推荐」对照;
+# 真实产品应按个体 TDEE / 性别 / 体重计算,这里仅作演示基线)。
+# key = daily_intake / vitals 的列名;value = (中文标签, 每日推荐值)
+_NUTRIENT_TARGETS: dict[str, tuple[str, float]] = {
+    "protein": ("蛋白质(g)", 60),
+    "carb": ("碳水(g)", 250),
+    "fat": ("脂肪(g)", 60),
+    "water_ml": ("水(ml)", 1500),
+    "kcal": ("热量(kcal)", 1800),
+    "steps": ("步数", 8000),
+    "sleep_hours": ("睡眠(h)", 7.5),
+}
 
 
 def build_line_option(title: str, x: list, y: list, y_label: str = "") -> dict[str, Any]:
@@ -65,8 +79,44 @@ def build_pie_option(title: str, names: list, values: list) -> dict[str, Any]:
     }
 
 
+def build_radar_option(
+    title: str, indicators: list[dict], actual: list[float], target: list[float]
+) -> dict[str, Any]:
+    """营养均衡雷达:实际(日均) vs 推荐,一张图看多维度是否达标。"""
+    return {
+        "color": _PALETTE,
+        "title": {"text": title, "left": "center"},
+        "tooltip": {},
+        "legend": {"bottom": 0, "data": ["实际(日均)", "推荐"]},
+        "radar": {"indicator": indicators, "radius": "62%", "center": ["50%", "54%"]},
+        "series": [{
+            "type": "radar",
+            "data": [
+                {"value": actual, "name": "实际(日均)", "areaStyle": {"opacity": 0.18}},
+                {"value": target, "name": "推荐", "lineStyle": {"type": "dashed"}},
+            ],
+        }],
+    }
+
+
 def _numeric_keys(row: dict) -> list[str]:
     return [k for k, v in row.items() if isinstance(v, (int, float)) and not isinstance(v, bool)]
+
+
+def _radar_from_rows(rows: list[dict], num_keys: list[str], title: str) -> dict[str, Any] | None:
+    """问"营养均衡"且含 ≥3 个已知营养指标时,聚合日均 → 雷达;否则 None(交回选图)。"""
+    cols = [k for k in num_keys if k in _NUTRIENT_TARGETS]
+    if len(cols) < 3:
+        return None
+    indicators, actual, target = [], [], []
+    for c in cols:
+        name, tgt = _NUTRIENT_TARGETS[c]
+        vals = [r[c] for r in rows if isinstance(r.get(c), (int, float))]
+        avg = round(sum(vals) / len(vals), 1) if vals else 0
+        indicators.append({"name": name, "max": round(tgt * 1.6, 1)})
+        actual.append(avg)
+        target.append(tgt)
+    return build_radar_option(title, indicators, actual, target)
 
 
 def rows_to_chart(rows: list[dict], title: str) -> dict[str, Any]:
@@ -85,6 +135,13 @@ def rows_to_chart(rows: list[dict], title: str) -> dict[str, Any]:
     q = title or ""
     want_pie = any(k in q for k in _PIE_KW)
     want_bar = any(k in q for k in _BAR_KW)
+    want_radar = any(k in q for k in _RADAR_KW)
+
+    # 形态 0(优先):营养均衡 → 雷达(多营养素 实际 vs 推荐)
+    if want_radar:
+        radar = _radar_from_rows(rows, num_keys, title)
+        if radar is not None:
+            return radar
 
     # 形态 1:单行多指标 → 饼(默认,适合"占比/构成")或柱
     if len(rows) == 1 and len(num_keys) >= 2:
