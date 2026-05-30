@@ -1178,38 +1178,41 @@ function onLogout() {
   border-radius: 8px;
 }
 
+/* 底部悬空:不再是贴底白条,而是浮在页面背景上的输入卡片 + 居中快捷条 */
 .composer-area {
   flex-shrink: 0;
-  background: rgba(255, 255, 255, 0.86);
-  backdrop-filter: blur(8px);
-  border-top: 1px solid #e7eeed;
-  box-shadow: 0 -6px 20px rgba(16, 40, 39, 0.04);
+  background: transparent;
+  padding-bottom: 16px;
 }
-/* 输入框聚焦时的青绿光晕 */
+/* 输入框做成悬浮卡片:白底 + 圆角 + 投影;聚焦时青绿光晕 */
 .composer :deep(.n-input) {
-  border-radius: 14px;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 8px 26px rgba(16, 40, 39, 0.1);
 }
 .composer :deep(.n-input.n-input--focus) {
-  box-shadow: 0 0 0 3px rgba(47, 139, 137, 0.14);
+  box-shadow: 0 8px 26px rgba(16, 40, 39, 0.12), 0 0 0 3px rgba(47, 139, 137, 0.16);
 }
 .cap-bar {
-  max-width: 1280px;
+  max-width: 1080px;
   margin: 0 auto;
-  padding: 10px 24px 0;
+  padding: 10px 24px 10px;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  justify-content: center;
 }
 .cap-pill {
   font-size: 12.5px;
   color: #2f8b89;
-  background: #eef6f5;
+  background: rgba(255, 255, 255, 0.92);
   border: 1px solid #d6e9e7;
   border-radius: 999px;
-  padding: 4px 12px;
+  padding: 5px 13px;
   cursor: pointer;
   transition: all 0.12s;
   user-select: none;
+  box-shadow: 0 2px 8px rgba(16, 40, 39, 0.06);
 }
 .cap-pill:hover {
   background: #2f8b89;
@@ -1217,12 +1220,12 @@ function onLogout() {
   border-color: #2f8b89;
 }
 .composer {
-  padding: 12px 24px 16px;
+  padding: 0 24px;
   display: flex;
   gap: 12px;
   align-items: flex-end;
   width: 100%;
-  max-width: 1280px;
+  max-width: 1080px;
   margin: 0 auto;
 }
 </style>
