@@ -67,3 +67,39 @@ def test_empty_rows_returns_no_data():
 
 def test_rows_without_numeric_returns_no_data():
     assert rows_to_chart([{"label": "x"}], "y").get("noData") is True
+
+
+# ---- 回归:NL2SQL 的 avg_ 前缀列名 + 不能混单位假占比 ----
+
+def test_avg_prefixed_nutrients_trigger_radar():
+    """avg_protein 等聚合前缀列名也要能识别 → 营养均衡出雷达,而非乱算占比。"""
+    rows = [{"avg_kcal": 2004, "avg_protein": 80, "avg_carb": 252, "avg_fat": 65, "avg_water_ml": 1861}]
+    assert _type(rows_to_chart(rows, "我的营养摄入均衡吗")) == "radar"
+
+
+def test_mixed_unit_nutrients_never_become_pie():
+    """热量+水+蛋白质 单位不同,绝不能出占比饼(截图里的 bug)。"""
+    rows = [{"avg_kcal": 2004, "avg_protein": 80, "avg_water_ml": 1861}]
+    from app.agents.data_insight.echarts import build_charts
+    types = {c["type"] for c in build_charts(rows, "营养均衡")}
+    # 可以有雷达/柱,但不能把异单位指标做成饼
+    assert "pie" not in types
+
+
+def test_macro_composition_is_kcal_weighted_pie():
+    """三大产能营养素占比 → 按热量贡献(碳水/蛋白×4、脂肪×9),而非克数。"""
+    rows = [{"avg_carb": 100, "avg_protein": 100, "avg_fat": 100}]
+    chart = rows_to_chart(rows, "三大产能营养素占比")
+    assert _type(chart) == "pie"
+    vals = {d["name"]: d["value"] for d in chart["series"][0]["data"]}
+    assert vals["脂肪(g)"] == 900  # 100g * 9 kcal/g
+    assert vals["碳水(g)"] == 400  # 100g * 4 kcal/g
+
+
+def test_build_charts_offers_alternatives():
+    """时间序列应同时提供 折线 + 柱 供切换,推荐项在首。"""
+    from app.agents.data_insight.echarts import build_charts
+    rows = [{"date": "2026-05-01", "protein": 80}, {"date": "2026-05-02", "protein": 82}]
+    charts = build_charts(rows, "近30天蛋白质趋势")
+    assert charts[0]["type"] == "line"
+    assert {c["type"] for c in charts} >= {"line", "bar"}

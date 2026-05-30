@@ -182,9 +182,14 @@ async def chat_stream(
                     "used_tools": used,
                 }
                 # 数据洞察:把 ECharts 配置随 done 事件下发,前端渲染图表
-                chart = ((out.get("extra") or {}).get("insight") or {}).get("echarts_option")
+                insight = (out.get("extra") or {}).get("insight") or {}
+                chart = insight.get("echarts_option")
                 if isinstance(chart, dict) and not chart.get("noData"):
                     done["chart"] = chart
+                # 多套可切换图(折线/柱/环形/雷达),前端渲染切换按钮
+                charts = insight.get("echarts_charts")
+                if isinstance(charts, list) and charts:
+                    done["charts"] = charts
                 # 风险筛查:把可点选项随 done 事件下发,前端渲染快捷按钮
                 if out.get("quick_replies"):
                     done["quick_replies"] = out["quick_replies"]

@@ -115,6 +115,22 @@ function fillPrompt(text: string) {
   input.value = text;
 }
 
+// 数据洞察:当前选中图的 option(多图切换)
+function activeChart(m: ChatMessage): Record<string, any> | null {
+  if (m.charts && m.charts.length) {
+    const t = m.chartType || m.charts[0].type;
+    return (m.charts.find((c) => c.type === t) || m.charts[0]).option;
+  }
+  return m.chart || null;
+}
+
+// 左侧栏收起/展开(持久化)
+const sidebarCollapsed = ref(localStorage.getItem("nutricore_sidebar_collapsed") === "1");
+function toggleSidebar() {
+  sidebarCollapsed.value = !sidebarCollapsed.value;
+  localStorage.setItem("nutricore_sidebar_collapsed", sidebarCollapsed.value ? "1" : "0");
+}
+
 const intentLabel: Record<string, string> = {
   consult: "营养咨询",
   screening: "风险筛查",
@@ -153,6 +169,8 @@ async function send(text?: string) {
     citations: [],
     usedTools: [],
     chart: null,
+    charts: [],
+    chartType: "",
     quickReplies: [],
   });
   const ai = conv.messages[conv.messages.length - 1];
@@ -206,6 +224,8 @@ async function send(text?: string) {
           ai.citations = p.citations || [];
           ai.usedTools = p.used_tools || [];
           ai.chart = p.chart || null;
+          ai.charts = p.charts || [];
+          ai.chartType = ai.charts.length ? ai.charts[0].type : "";
           ai.quickReplies = p.quick_replies || [];
         } else if (p.type === "error") {
           ai.content += (ai.content ? "\n\n" : "") + p.message;
@@ -246,13 +266,14 @@ function onLogout() {
 <template>
   <div class="layout">
     <!-- ===== 左侧边栏 ===== -->
-    <aside class="sidebar">
+    <aside class="sidebar" :class="{ collapsed: sidebarCollapsed }">
       <div class="side-brand">
         <span class="logo">🥗</span>
-        <div>
+        <div class="side-brand-text">
           <div class="name">NutriCore</div>
           <div class="sub">AI 营养师</div>
         </div>
+        <button class="side-collapse" title="收起侧栏" @click="toggleSidebar">«</button>
       </div>
 
       <n-button class="new-chat" type="primary" block @click="onNewChat">
@@ -300,6 +321,14 @@ function onLogout() {
 
     <!-- ===== 右侧主对话 ===== -->
     <div class="chat-main">
+      <button
+        v-if="sidebarCollapsed"
+        class="side-expand"
+        title="展开侧栏"
+        @click="toggleSidebar"
+      >
+        »
+      </button>
       <main ref="listRef" class="messages">
         <!-- 欢迎 -->
         <div v-if="messages.length === 0" class="welcome">
@@ -342,8 +371,25 @@ function onLogout() {
               <div v-else class="text markdown" v-html="renderMarkdown(m.content)" />
             </template>
             <div v-else class="text">{{ m.content }}</div>
-            <!-- 数据洞察:ECharts 图表 -->
-            <echart-block v-if="m.role === 'assistant' && m.chart" :option="m.chart" />
+            <!-- 数据洞察:ECharts 图表(可切换 折线/柱/环形/雷达) -->
+            <div
+              v-if="m.role === 'assistant' && ((m.charts && m.charts.length) || m.chart)"
+              class="chart-block"
+            >
+              <div v-if="m.charts && m.charts.length > 1" class="chart-tabs">
+                <button
+                  v-for="c in m.charts"
+                  :key="c.type"
+                  type="button"
+                  class="chart-tab"
+                  :class="{ active: (m.chartType || m.charts[0].type) === c.type }"
+                  @click="m.chartType = c.type"
+                >
+                  {{ c.label }}
+                </button>
+              </div>
+              <echart-block :option="activeChart(m)" />
+            </div>
             <div v-if="m.citations && m.citations.length" class="cites">
               <span class="cites-label">📚 依据来源</span>
               <span v-for="c in prettyCitations(m.citations)" :key="c" class="cite">{{ c }}</span>
@@ -461,6 +507,48 @@ function onLogout() {
   flex-direction: column;
   padding: 18px 14px;
   box-shadow: 1px 0 0 rgba(255, 255, 255, 0.04), 6px 0 24px rgba(8, 30, 29, 0.18);
+  overflow: hidden;
+  transition: width 0.22s ease, padding 0.22s ease;
+}
+.sidebar.collapsed {
+  width: 0;
+  padding-left: 0;
+  padding-right: 0;
+}
+.side-collapse {
+  margin-left: auto;
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: #cfe6e4;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  transition: background 0.15s;
+}
+.side-collapse:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+.side-expand {
+  position: absolute;
+  left: 12px;
+  top: 16px;
+  z-index: 6;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: #16413f;
+  color: #e6f4f3;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  cursor: pointer;
+  font-size: 15px;
+  box-shadow: 0 4px 14px rgba(8, 30, 29, 0.25);
+}
+.side-expand:hover {
+  background: #1d524f;
 }
 .side-brand {
   display: flex;
@@ -581,9 +669,13 @@ function onLogout() {
 
 /* ===== 主对话 ===== */
 .chat-main {
+  position: relative;
   flex: 1;
   display: flex;
   flex-direction: column;
+  min-width: 0;
+}
+.side-brand-text {
   min-width: 0;
 }
 .messages {
@@ -591,7 +683,7 @@ function onLogout() {
   overflow-y: auto;
   padding: 28px 24px;
   width: 100%;
-  max-width: 820px;
+  max-width: 1080px;
   margin: 0 auto;
 }
 .welcome {
@@ -873,6 +965,35 @@ function onLogout() {
   cursor: not-allowed;
 }
 
+/* 数据洞察:图表切换 */
+.chart-block {
+  margin-top: 10px;
+}
+.chart-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.chart-tab {
+  font-size: 12.5px;
+  color: #5a6b69;
+  background: #f2f6f5;
+  border: 1px solid #e3edeb;
+  border-radius: 8px;
+  padding: 4px 12px;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.chart-tab:hover {
+  border-color: #2f8b89;
+  color: #2f8b89;
+}
+.chart-tab.active {
+  background: #2f8b89;
+  border-color: #2f8b89;
+  color: #fff;
+}
+
 /* 头像可点 + 选择器网格 */
 .clickable-avatar {
   cursor: pointer;
@@ -922,7 +1043,7 @@ function onLogout() {
   box-shadow: 0 0 0 3px rgba(47, 139, 137, 0.14);
 }
 .cap-bar {
-  max-width: 820px;
+  max-width: 1080px;
   margin: 0 auto;
   padding: 10px 24px 0;
   display: flex;
@@ -951,7 +1072,7 @@ function onLogout() {
   gap: 12px;
   align-items: flex-end;
   width: 100%;
-  max-width: 820px;
+  max-width: 1080px;
   margin: 0 auto;
 }
 </style>

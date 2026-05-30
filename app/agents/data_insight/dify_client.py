@@ -9,7 +9,7 @@ from typing import Any
 import httpx
 from loguru import logger
 
-from app.agents.data_insight.echarts import four_paragraph_insight, rows_to_chart
+from app.agents.data_insight.echarts import build_charts, four_paragraph_insight
 from app.agents.data_insight.nl2sql import nl2sql
 from app.config import get_settings
 
@@ -33,12 +33,13 @@ async def _dify_run(question: str, user_id: str) -> dict:
 async def _local_fallback(question: str, user_id: str) -> dict[str, Any]:
     nl = await nl2sql(question, user_id)
     rows = nl["rows"]
-    chart = rows_to_chart(rows, title=question)
+    charts = build_charts(rows, title=question)  # 多套可切换图(推荐在首)
     insight = await four_paragraph_insight(rows, metric=question)
     return {
         "sql": nl["sql"],
         "rows": rows,
-        "echarts_option": chart,
+        "echarts_option": charts[0]["option"] if charts else {"noData": True},
+        "echarts_charts": charts,
         "insight": insight,
         "source": "local",
     }
