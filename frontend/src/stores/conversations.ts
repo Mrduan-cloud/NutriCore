@@ -23,6 +23,7 @@ export interface Conversation {
   title: string;
   messages: ChatMessage[];
   createdAt: number;
+  pinned?: boolean;
 }
 
 // 会话历史按用户隔离:localStorage key 带 user_id 后缀,切换账号互不串扰。
@@ -88,11 +89,28 @@ export const useConversationStore = defineStore("conversations", () => {
     persist(auth.userId, list.value);
   }
 
+  // 置顶 / 取消置顶
+  function togglePin(id: string) {
+    const c = list.value.find((x) => x.id === id);
+    if (c) {
+      c.pinned = !c.pinned;
+      persist(auth.userId, list.value);
+    }
+  }
+
+  // 渲染顺序:置顶在前,各组内保持原顺序(最近的在上)
+  function ordered(): Conversation[] {
+    return [...list.value].sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
+  }
+
   // 切换账号后重新载入当前用户的会话(在进入聊天页时调用)
   function reload() {
     list.value = load(auth.userId);
     activeId.value = list.value[0]?.id || "";
   }
 
-  return { list, activeId, newConversation, active, select, remove, save, reload };
+  return {
+    list, activeId, newConversation, active, select, remove, save, reload,
+    togglePin, ordered,
+  };
 });

@@ -165,9 +165,10 @@ def _radar_from_rows(rows: list[dict], num_keys: list[str], title: str) -> dict[
 
 
 def _macro_donut(rows: list[dict], num_keys: list[str], title: str) -> dict[str, Any] | None:
-    """三大产能营养素 → 按**热量贡献**占比(同单位、有意义的部分占整体)。
+    """三大产能营养素(碳水/蛋白/脂肪)→ 按**克数**占比(同单位,部分占整体)。
 
-    不混入热量/水等异单位指标(那种饼图是错的)。
+    用克数(而非热量贡献)是为了与四段式解读文本一致(文本也按克数算占比),
+    避免「图说 52%、文字说 63%」的矛盾;且不混入热量/水等异单位指标。
     """
     macro = [k for k in num_keys if _nutrient_of(k) in _MACRO_KCAL]
     if len(macro) < 2:
@@ -177,9 +178,8 @@ def _macro_donut(rows: list[dict], num_keys: list[str], title: str) -> dict[str,
         vals = [r[c] for r in rows if isinstance(r.get(c), (int, float))]
         if not vals:
             continue
-        avg_g = sum(vals) / len(vals)
         names.append(_label(c))
-        values.append(round(avg_g * _MACRO_KCAL[_nutrient_of(c)], 1))  # 克 → 千卡
+        values.append(round(sum(vals) / len(vals), 1))  # 日均克数
     return build_pie_option(title, names, values) if len(values) >= 2 else None
 
 

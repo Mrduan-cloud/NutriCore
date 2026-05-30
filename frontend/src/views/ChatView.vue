@@ -124,6 +124,28 @@ function activeChart(m: ChatMessage): Record<string, any> | null {
   return m.chart || null;
 }
 
+// 复制消息内容到剪贴板(secure context 用 Clipboard API,否则回退 execCommand)
+async function copyMessage(m: ChatMessage) {
+  const text = m.content || "";
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+    } else {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+    }
+    message.success("已复制");
+  } catch {
+    message.warning("复制失败,请手动选择");
+  }
+}
+
 // 左侧栏收起/展开(持久化)
 const sidebarCollapsed = ref(localStorage.getItem("nutricore_sidebar_collapsed") === "1");
 function toggleSidebar() {
@@ -283,19 +305,27 @@ function onLogout() {
       <div class="conv-list">
         <div class="conv-list-title">历史对话</div>
         <div
-          v-for="c in convStore.list"
+          v-for="c in convStore.ordered()"
           :key="c.id"
           class="conv-item"
-          :class="{ active: c.id === convStore.activeId }"
+          :class="{ active: c.id === convStore.activeId, pinned: c.pinned }"
           @click="onSelectConv(c.id)"
         >
           <span class="conv-title">{{ c.title || "新对话" }}</span>
-          <n-popconfirm @positive-click="onDeleteConv(c.id)">
-            <template #trigger>
-              <span class="conv-del" @click.stop>✕</span>
-            </template>
-            删除这条对话?
-          </n-popconfirm>
+          <span class="conv-actions" @click.stop>
+            <span
+              class="conv-pin"
+              :class="{ on: c.pinned }"
+              :title="c.pinned ? '取消置顶' : '置顶'"
+              @click="convStore.togglePin(c.id)"
+            >📌</span>
+            <n-popconfirm @positive-click="onDeleteConv(c.id)">
+              <template #trigger>
+                <span class="conv-del">✕</span>
+              </template>
+              删除这条对话?
+            </n-popconfirm>
+          </span>
         </div>
       </div>
 
@@ -356,6 +386,15 @@ function onLogout() {
             🥗
           </n-avatar>
           <div class="bubble" :class="m.role">
+            <button
+              v-if="m.content"
+              class="copy-btn"
+              :class="m.role"
+              title="复制"
+              @click="copyMessage(m)"
+            >
+              ⧉
+            </button>
             <div v-if="m.role === 'assistant' && m.intent" class="meta">
               <n-tag size="small" :type="m.isHighRisk ? 'warning' : 'success'" :bordered="false">
                 {{ intentLabel[m.intent] || m.intent }}
@@ -624,11 +663,36 @@ function onLogout() {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.conv-actions {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  flex-shrink: 0;
+}
+.conv-pin {
+  opacity: 0;
+  font-size: 11px;
+  padding: 0 3px;
+  cursor: pointer;
+  filter: grayscale(1);
+  transition: opacity 0.15s;
+}
+.conv-item:hover .conv-pin {
+  opacity: 0.5;
+}
+.conv-pin:hover {
+  opacity: 1 !important;
+}
+.conv-pin.on {
+  opacity: 1;
+  filter: none;
+}
 .conv-del {
   opacity: 0;
   font-size: 12px;
   padding: 0 4px;
   color: #cfe6e4;
+  cursor: pointer;
 }
 .conv-item:hover .conv-del {
   opacity: 0.6;
@@ -788,6 +852,7 @@ function onLogout() {
   box-shadow: 0 2px 6px rgba(16, 40, 39, 0.12);
 }
 .bubble {
+  position: relative;
   max-width: 78%;
   padding: 12px 16px;
   border-radius: 16px;
@@ -795,6 +860,38 @@ function onLogout() {
   font-size: 15px;
   white-space: pre-wrap;
   word-break: break-word;
+}
+/* 复制按钮:hover 时出现在气泡右上角 */
+.copy-btn {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  opacity: 0;
+  transition: opacity 0.15s, background 0.15s;
+}
+.bubble:hover .copy-btn {
+  opacity: 1;
+}
+.copy-btn.assistant {
+  background: #eef2f2;
+  color: #5a6b69;
+}
+.copy-btn.assistant:hover {
+  background: #dce6e4;
+}
+.copy-btn.user {
+  background: rgba(255, 255, 255, 0.22);
+  color: #f0fffb;
+}
+.copy-btn.user:hover {
+  background: rgba(255, 255, 255, 0.38);
 }
 .bubble.assistant {
   background: #fff;
