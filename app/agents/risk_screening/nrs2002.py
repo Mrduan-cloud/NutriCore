@@ -77,11 +77,22 @@ def _age_score(age: int) -> int:
 
 
 def _risk_level(total: int) -> tuple[str, str]:
+    """NRS-2002 严格二分法(ESPEN 2002 / Kondrup),不存在"轻/中度风险"中间档。
+
+    - 总分 ≥ 3 → **有营养风险**(at-risk):应启动个性化营养支持方案
+    - 总分 < 3 → **暂无营养风险**(not at-risk):标准做法是 1 周后重新筛查
+
+    注:1-2 分**不是**"轻度风险"——这是临床筛查工具的常见误读。
+    """
     if total >= 3:
-        return "建议营养支持", "建议尽快制定个性化营养方案，并考虑专科医生介入。"
-    if total >= 1:
-        return "存在风险", "建议持续监测体重与进食情况，可启用 7 天营养方案干预。"
-    return "无风险", "继续保持当前膳食结构，定期复测即可。"
+        return (
+            "有营养风险",
+            "应启动个性化营养支持方案,建议由专科营养师或临床医生进一步评估。",
+        )
+    return (
+        "暂无营养风险",
+        "按 NRS-2002 标准 1 周后再筛查;期间持续监测体重与进食量变化。",
+    )
 
 
 def compute_nrs2002(user_id: str, answer: NRSAnswer) -> NRSReport:

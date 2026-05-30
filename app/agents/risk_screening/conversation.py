@@ -163,18 +163,83 @@ _DISEASE_DESC = {
 }
 
 
+def _bmi_label(bmi: float) -> str:
+    """中国成人 BMI 分级(WS/T 428-2013)。
+
+    跟 NRS-2002 评分逻辑解耦:评分关心的是营养不良风险(<18.5 / <20.5 才扣分),
+    标签关心的是常识沟通(超重 / 肥胖也得说清,不能笼统称"正常")。
+    """
+    if bmi < 18.5:
+        return "偏瘦"
+    if bmi < 24:
+        return "正常"
+    if bmi < 28:
+        return "超重"
+    return "肥胖"
+
+
+def _next_screen_hint(total: int) -> str:
+    """NRS-2002 复评节奏:有风险 / 暂无风险 / 全 0 分。"""
+    if total >= 3:
+        return "**下次复评:** 营养支持方案启动后 1 周复评。"
+    if total >= 1:
+        return "**下次复评:** 1 周后再做一次(NRS-2002 标准做法),密切跟踪。"
+    return "**下次复评:** 半年至 1 年内复测即可;体重 / 进食量有明显变化时立即重做。"
+
+
+def _weak_spot_advice(parts: dict[str, int], slots: dict[str, str]) -> list[str]:
+    """按实际扣分维度给出针对性建议;不扣分则不出条(避免空泛)。"""
+    advice: list[str] = []
+    if parts.get("intake", 0) >= 1:
+        advice.append(
+            f"**进食量不足({_INTAKE_DESC.get(slots.get('intake_band', ''), '')})** —— "
+            "从加餐入手(上午 / 下午各 1 次),选高能量密度小食(无糖酸奶、坚果、全脂奶);"
+            "每餐先吃蛋白质 + 主食、最后吃菜,避免过早饱腹。"
+        )
+    if parts.get("weight_loss", 0) >= 1:
+        advice.append(
+            f"**体重下降({_WL_DESC.get(slots.get('weight_loss_band', ''), '')})** —— "
+            "每天同一时间(晨起空腹)称重并记录 2 周趋势;若仍持续下降,"
+            "需排查甲状腺、糖代谢、消化吸收等基础病因。"
+        )
+    if parts.get("bmi", 0) >= 1:
+        advice.append(
+            "**BMI 偏低** —— 优先抬高每日总热量(以蛋白质 + 复合碳水为主),"
+            "配合阻力训练增肌,而不只是堆脂肪。"
+        )
+    return advice
+
+
+def _completion_quick_replies(total: int, parts: dict[str, int]) -> list[str]:
+    """评分后的入口建议,按风险等级 + 扣分维度组合。"""
+    if total >= 3:
+        return [
+            "立即生成 7 天营养支持方案",
+            "解释这些分数的含义",
+            "什么时候需要找临床营养师?",
+        ]
+    if total >= 1:
+        replies: list[str] = []
+        if parts.get("intake", 0) >= 1:
+            replies.append("如何科学地提升进食量?")
+        if parts.get("weight_loss", 0) >= 1:
+            replies.append("体重持续下降可能是什么原因?")
+        replies += ["生成 7 天营养方案", "解释每个分数的含义"]
+        return replies[:4]
+    return ["生成 7 天保养型食谱", "解释每个分数的含义"]
+
+
 def _format_result(report, slots: dict[str, str], answer: NRSAnswer) -> str:
     parts = nutrition_breakdown(answer)
-    bmi = answer.bmi
-    bmi_desc = "正常" if bmi > 20.5 else ("偏低 18.5-20.5" if bmi >= 18.5 else "过低 <18.5")
     age_note = "≥70,+1 分" if answer.age >= 70 else "<70,0 分"
+
     lines = [
         "### NRS-2002 评分结果(确定性计算)",
         "",
         f"**A. 营养状态受损:{report.nutrition_score} 分**",
         f"- 体重:{_WL_DESC.get(slots['weight_loss_band'], '未知')} → {parts['weight_loss']} 分",
         f"- 进食:{_INTAKE_DESC.get(slots['intake_band'], '未知')} → {parts['intake']} 分",
-        f"- BMI {bmi}:{bmi_desc} → {parts['bmi']} 分",
+        f"- BMI {answer.bmi}({_bmi_label(answer.bmi)}) → {parts['bmi']} 分",
         f"- 取三者最高 → {report.nutrition_score} 分",
         "",
         f"**B. 疾病严重程度:{report.disease_score} 分** — {_DISEASE_DESC.get(slots['disease_band'], '未知')}",
@@ -183,6 +248,18 @@ def _format_result(report, slots: dict[str, str], answer: NRSAnswer) -> str:
         "",
         f"**总分:{report.total_score} 分 → {report.risk_level}**",
         report.recommendation,
+        "",
+        _next_screen_hint(report.total_score),
+    ]
+
+    advice = _weak_spot_advice(parts, slots)
+    if advice:
+        lines.append("")
+        lines.append("**针对性建议**")
+        for a in advice:
+            lines.append(f"- {a}")
+
+    lines += [
         "",
         "> 本结果由 NRS-2002 算法确定性计算,属初步筛查、非诊断;"
         "涉及疾病诊疗 / 用药请咨询专科医生或临床营养师。",
@@ -239,4 +316,8 @@ async def screen_step(
         "nrs2002 deterministic score: nutrition={} disease={} age={} total={}",
         report.nutrition_score, report.disease_score, report.age_score, report.total_score,
     )
-    return {"message": _format_result(report, slots, answer), "quick_replies": [], "complete": True}
+    return {
+        "message": _format_result(report, slots, answer),
+        "quick_replies": _completion_quick_replies(report.total_score, nutrition_breakdown(answer)),
+        "complete": True,
+    }

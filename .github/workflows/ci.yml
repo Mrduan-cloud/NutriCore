@@ -50,7 +50,7 @@ jobs:
           PY
 
       - name: Pure-logic tests
-        run: pytest tests/test_nrs2002.py tests/test_meal_plan_validator.py tests/test_nl2sql_safety.py tests/test_echarts.py tests/test_auth.py tests/test_portions.py -v
+        run: pytest tests/test_nrs2002.py tests/test_meal_plan_validator.py tests/test_nl2sql_safety.py tests/test_echarts.py tests/test_auth.py tests/test_portions.py tests/test_screening_presentation.py -v
 
       # 图 / 记忆测试此前不在 CI 里 → 随代码演进静默腐烂(general_consult / 确定性筛查
       # 改了实现但测试没跟上)。全部用 monkeypatch 打成离线确定性,纳入 CI 守护。

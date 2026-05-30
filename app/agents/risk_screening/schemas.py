@@ -54,6 +54,6 @@ class NRSReport(BaseModel):
     disease_score: int = Field(..., ge=0, le=3)
     age_score: int = Field(..., ge=0, le=1)
     total_score: int = Field(..., ge=0, le=7)
-    risk_level: str            # "无风险" / "存在风险" / "建议营养支持"
+    risk_level: str            # NRS-2002 二分:"暂无营养风险" / "有营养风险"
     recommendation: str
     answered_at: str
