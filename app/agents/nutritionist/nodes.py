@@ -7,6 +7,7 @@ from typing import Any
 
 from loguru import logger
 
+from app.agents.meal_plan.portions import portion_hint, uses_hand_estimate
 from app.agents.nutritionist.memory import extract_entities, merge_profile
 from app.agents.nutritionist.prompts import CONSULT_SYSTEM, INTENT_PROMPT
 from app.core.llm import chat_complete
@@ -549,6 +550,22 @@ def _collect_citations(plan: dict) -> list[str]:
 _SLOT_NAME = {"breakfast": "早餐", "lunch": "午餐", "dinner": "晚餐", "snack": "加餐"}
 
 
+def _food_label(item: dict) -> str:
+    """单个食材的展示:量词在前(一看就懂),克数在括号里保精确。
+
+    如 "鸡蛋 1个(50g)"、"糙米饭 1碗(150g)"、"鸡胸肉 1掌心(100g)";
+    无法换算量词时回退 "三文鱼(100g)"。
+    """
+    name = item.get("name", "")
+    g = item.get("portion_g")
+    hint = portion_hint(name, g)
+    if not g:
+        return name
+    if hint:
+        return f"{name} {hint}({round(g)}g)"
+    return f"{name}({round(g)}g)"
+
+
 def _format_meal_plan_md(plan: dict) -> str:
     """把生成的 7 天方案 dict 渲染成紧凑的对话内 Markdown(直接展示,不跳页)。"""
     target = plan.get("target_kcal")
@@ -556,21 +573,28 @@ def _format_meal_plan_md(plan: dict) -> str:
     if target:
         head += f"(目标热量约 **{round(target)} kcal/天**)"
     lines = [head + ":"]
+
+    used_hand = False
+    body: list[str] = []
     for day in (plan.get("days") or [])[:7]:
         d = day.get("day", "?")
         tk = day.get("total_kcal")
         day_head = f"**第 {d} 天**" + (f" · 约 {round(tk)} kcal" if tk else "")
-        lines.append("\n" + day_head)
+        body.append("\n" + day_head)
         for slot, name in _SLOT_NAME.items():
             items = day.get(slot) or []
             if not items:
                 continue
-            foods = "、".join(
-                f"{it.get('name', '')}"
-                + (f"({round(it.get('portion_g'))}g)" if it.get("portion_g") else "")
-                for it in items
-            )
-            lines.append(f"- {name}:{foods}")
+            used_hand = used_hand or any(uses_hand_estimate(it.get("name", "")) for it in items)
+            foods = "、".join(_food_label(it) for it in items)
+            body.append(f"- {name}:{foods}")
+
+    # 只有用到「掌心/拳/瓷勺」这类手掌法则量词时,才补一行说明(否则反而费解)
+    if used_hand:
+        lines.append(
+            "_份量按家常估算:1 掌心肉/鱼≈100g、1 拳菜≈100g、1 瓷勺油≈10g、1 碗饭≈150g_"
+        )
+    lines.extend(body)
     return "\n".join(lines)
 
 

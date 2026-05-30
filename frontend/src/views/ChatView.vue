@@ -808,7 +808,8 @@ function onLogout() {
   /* 底部留白:给悬浮输入区让位,最后一条消息能滚到其上方 */
   padding: 28px 24px 132px;
   width: 100%;
-  max-width: 1280px;
+  /* 高上限 + 居中:侧栏收起后内容填满宽度,只留小边距;窄屏自适应 */
+  max-width: 1680px;
   margin: 0 auto;
 }
 .welcome {
@@ -920,6 +921,12 @@ function onLogout() {
   font-size: 15px;
   white-space: pre-wrap;
   word-break: break-word;
+}
+/* AI 回复占满对话列宽度(填满布局,内容不再左缩一小块、右侧大留白);
+   用户气泡仍靠右、限宽 78%。 */
+.row:not(.user) .bubble {
+  flex: 1 1 auto;
+  max-width: 100%;
 }
 /* 复制按钮:hover 时出现在气泡右上角 */
 .copy-btn {
@@ -1222,7 +1229,7 @@ function onLogout() {
   box-shadow: 0 8px 26px rgba(16, 40, 39, 0.12), 0 0 0 3px rgba(47, 139, 137, 0.16);
 }
 .cap-bar {
-  max-width: 1080px;
+  max-width: 1680px;
   margin: 0 auto;
   padding: 10px 24px 10px;
   display: flex;
@@ -1252,7 +1259,7 @@ function onLogout() {
   gap: 12px;
   align-items: flex-end;
   width: 100%;
-  max-width: 1080px;
+  max-width: 1680px;
   margin: 0 auto;
 }
 </style>
