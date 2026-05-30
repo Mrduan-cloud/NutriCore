@@ -791,7 +791,8 @@ function onLogout() {
 .messages {
   flex: 1;
   overflow-y: auto;
-  padding: 28px 24px;
+  /* 底部留白:给悬浮输入区让位,最后一条消息能滚到其上方 */
+  padding: 28px 24px 132px;
   width: 100%;
   max-width: 1280px;
   margin: 0 auto;
@@ -1178,11 +1179,24 @@ function onLogout() {
   border-radius: 8px;
 }
 
-/* 底部悬空:不再是贴底白条,而是浮在页面背景上的输入卡片 + 居中快捷条 */
+/* 底部悬空:绝对定位浮在消息之上,顶部渐隐 —— 内容可从其下方滚过 */
 .composer-area {
-  flex-shrink: 0;
-  background: transparent;
-  padding-bottom: 16px;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 30px 0 16px;
+  background: linear-gradient(
+    to top,
+    #eef3f2 42%,
+    rgba(238, 243, 242, 0.82) 68%,
+    rgba(238, 243, 242, 0)
+  );
+  pointer-events: none; /* 透明渐隐区可穿透,滚动作用到下方消息 */
+}
+.cap-bar,
+.composer {
+  pointer-events: auto; /* 快捷条与输入框正常可点 */
 }
 /* 输入框做成悬浮卡片:白底 + 圆角 + 投影;聚焦时青绿光晕 */
 .composer :deep(.n-input) {
@@ -1200,7 +1214,6 @@ function onLogout() {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  justify-content: center;
 }
 .cap-pill {
   font-size: 12.5px;
