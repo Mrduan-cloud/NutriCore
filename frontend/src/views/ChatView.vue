@@ -793,7 +793,7 @@ function onLogout() {
   overflow-y: auto;
   padding: 28px 24px;
   width: 100%;
-  max-width: 1080px;
+  max-width: 1280px;
   margin: 0 auto;
 }
 .welcome {
@@ -1193,7 +1193,7 @@ function onLogout() {
   box-shadow: 0 0 0 3px rgba(47, 139, 137, 0.14);
 }
 .cap-bar {
-  max-width: 1080px;
+  max-width: 1280px;
   margin: 0 auto;
   padding: 10px 24px 0;
   display: flex;
@@ -1222,7 +1222,7 @@ function onLogout() {
   gap: 12px;
   align-items: flex-end;
   width: 100%;
-  max-width: 1080px;
+  max-width: 1280px;
   margin: 0 auto;
 }
 </style>
