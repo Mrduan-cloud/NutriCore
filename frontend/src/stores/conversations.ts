@@ -24,6 +24,7 @@ export interface Conversation {
   messages: ChatMessage[];
   createdAt: number;
   pinned?: boolean;
+  renamed?: boolean; // 手动重命名后,不再被首句自动标题覆盖
 }
 
 // 会话历史按用户隔离:localStorage key 带 user_id 后缀,切换账号互不串扰。
@@ -105,13 +106,24 @@ export const useConversationStore = defineStore("conversations", () => {
   }
 
   function save() {
-    // 标题用第一条用户消息(截断)
+    // 标题用第一条用户消息(截断);手动重命名过的不覆盖
     const conv = list.value.find((c) => c.id === activeId.value);
-    if (conv) {
+    if (conv && !conv.renamed) {
       const firstUser = conv.messages.find((m) => m.role === "user");
       if (firstUser) conv.title = firstUser.content.slice(0, 18);
     }
     persist(auth.userId, list.value);
+  }
+
+  // 重命名对话(手动)
+  function rename(id: string, title: string) {
+    const c = list.value.find((x) => x.id === id);
+    const t = title.trim();
+    if (c && t) {
+      c.title = t.slice(0, 40);
+      c.renamed = true;
+      persist(auth.userId, list.value);
+    }
   }
 
   // 置顶 / 取消置顶
@@ -136,6 +148,6 @@ export const useConversationStore = defineStore("conversations", () => {
 
   return {
     list, activeId, newConversation, active, select, remove, save, reload,
-    togglePin, ordered,
+    togglePin, ordered, rename,
   };
 });

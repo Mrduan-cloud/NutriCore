@@ -279,6 +279,25 @@ function onDeleteConv(id: string) {
   if (convStore.list.length === 0) convStore.newConversation();
 }
 
+// 重命名对话(双击标题 / 点 ✎ 进入编辑;Enter 或失焦保存,Esc 取消)
+const editingId = ref("");
+const editingTitle = ref("");
+const renameInput = ref<HTMLInputElement | null>(null);
+function startRename(c: { id: string; title: string }) {
+  editingId.value = c.id;
+  editingTitle.value = c.title || "";
+  nextTick(() => renameInput.value?.focus());
+}
+function commitRename() {
+  if (editingId.value && editingTitle.value.trim()) {
+    convStore.rename(editingId.value, editingTitle.value);
+  }
+  editingId.value = "";
+}
+function cancelRename() {
+  editingId.value = "";
+}
+
 function onLogout() {
   auth.logout();
   router.push("/login");
@@ -311,10 +330,22 @@ function onLogout() {
           :class="{ active: c.id === convStore.activeId, pinned: c.pinned }"
           @click="onSelectConv(c.id)"
         >
-          <span class="conv-title">{{ c.title || "新对话" }}</span>
-          <span class="conv-actions" @click.stop>
+          <input
+            v-if="editingId === c.id"
+            ref="renameInput"
+            v-model="editingTitle"
+            class="conv-rename"
+            maxlength="40"
+            @click.stop
+            @keyup.enter="commitRename"
+            @keyup.esc="cancelRename"
+            @blur="commitRename"
+          />
+          <span v-else class="conv-title" @dblclick.stop="startRename(c)">{{ c.title || "新对话" }}</span>
+          <span v-if="editingId !== c.id" class="conv-actions" @click.stop>
+            <span class="conv-act" title="重命名" @click="startRename(c)">✎</span>
             <span
-              class="conv-pin"
+              class="conv-act conv-pin"
               :class="{ on: c.pinned }"
               :title="c.pinned ? '取消置顶' : '置顶'"
               @click="convStore.togglePin(c.id)"
@@ -669,23 +700,37 @@ function onLogout() {
   gap: 1px;
   flex-shrink: 0;
 }
-.conv-pin {
+.conv-act {
   opacity: 0;
   font-size: 11px;
   padding: 0 3px;
   cursor: pointer;
-  filter: grayscale(1);
+  color: #cfe6e4;
   transition: opacity 0.15s;
 }
-.conv-item:hover .conv-pin {
+.conv-item:hover .conv-act {
   opacity: 0.5;
 }
-.conv-pin:hover {
+.conv-act:hover {
   opacity: 1 !important;
+}
+.conv-pin {
+  filter: grayscale(1);
 }
 .conv-pin.on {
   opacity: 1;
   filter: none;
+}
+.conv-rename {
+  flex: 1;
+  min-width: 0;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 6px;
+  color: #fff;
+  font-size: 13px;
+  padding: 3px 7px;
+  outline: none;
 }
 .conv-del {
   opacity: 0;
