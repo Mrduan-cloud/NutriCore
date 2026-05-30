@@ -247,7 +247,7 @@ async function send(text?: string) {
           ai.usedTools = p.used_tools || [];
           ai.chart = p.chart || null;
           ai.charts = p.charts || [];
-          ai.chartType = ai.charts.length ? ai.charts[0].type : "";
+          ai.chartType = ai.charts && ai.charts.length ? ai.charts[0].type : "";
           ai.quickReplies = p.quick_replies || [];
         } else if (p.type === "error") {
           ai.content += (ai.content ? "\n\n" : "") + p.message;
