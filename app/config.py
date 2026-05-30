@@ -28,6 +28,15 @@ class Settings(BaseSettings):
     jwt_access_token_expire_minutes: int = 60 * 24
     api_key_header: str = "X-API-Key"
 
+    # 演示账号统一口令:仅用于「启动时 seed 演示人设」,不再是全局通行口令。
+    demo_password: str = Field("nutricore2024", description="演示人设 seed 口令")
+    # 启动时引导的管理员账号(生产务必用环境变量覆盖口令)
+    admin_username: str = "admin"
+    admin_password: str = Field("nutricore-admin-2024", description="引导管理员口令")
+    # 登录失败锁定:N 次失败锁 M 分钟,挡暴力撞库
+    auth_max_failed_attempts: int = 5
+    auth_lockout_minutes: int = 15
+
     # ============ LLM (vLLM 私有化) ============
     # 默认：2× RTX 4090 + Qwen2.5-32B-Instruct-AWQ + Tensor Parallel(TP=2)
     # 启动命令见 docs/DEPLOYMENT.md §2.5
@@ -93,6 +102,16 @@ class Settings(BaseSettings):
     @property
     def is_prod(self) -> bool:
         return self.app_env == "prod"
+
+    # 仍是默认值的敏感配置(用于启动自检:prod 直接拒启,dev 仅告警)
+    _INSECURE_DEFAULTS = {
+        "jwt_secret_key": "change-me-in-prod-please",
+        "admin_password": "nutricore-admin-2024",
+        "mysql_password": "changeme",
+    }
+
+    def insecure_defaults(self) -> list[str]:
+        return [k for k, v in self._INSECURE_DEFAULTS.items() if getattr(self, k) == v]
 
 
 @lru_cache

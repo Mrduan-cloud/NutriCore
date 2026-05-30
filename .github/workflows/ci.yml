@@ -27,6 +27,7 @@ jobs:
             langgraph==0.0.40 langchain-core==0.1.46 openai==1.23.2 redis==5.0.3 \
             loguru==0.7.2 prometheus-client==0.20.0 tortoise-orm==0.20.0 \
             pymilvus==2.4.0 sqlalchemy==2.0.29 httpx==0.27.0 fastapi==0.110.0 \
+            PyJWT==2.8.0 bcrypt==4.1.3 \
             "marshmallow<4" environs==9.5.0
 
       - name: Ruff lint
@@ -49,7 +50,7 @@ jobs:
           PY
 
       - name: Pure-logic tests
-        run: pytest tests/test_nrs2002.py tests/test_meal_plan_validator.py tests/test_nl2sql_safety.py tests/test_echarts.py -v
+        run: pytest tests/test_nrs2002.py tests/test_meal_plan_validator.py tests/test_nl2sql_safety.py tests/test_echarts.py tests/test_auth.py -v
 
       # 图 / 记忆测试此前不在 CI 里 → 随代码演进静默腐烂(general_consult / 确定性筛查
       # 改了实现但测试没跟上)。全部用 monkeypatch 打成离线确定性,纳入 CI 守护。

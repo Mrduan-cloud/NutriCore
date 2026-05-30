@@ -16,17 +16,26 @@ const router = createRouter({
       component: () => import("@/views/ChatView.vue"),
       meta: { requiresAuth: true },
     },
+    {
+      path: "/admin",
+      name: "admin",
+      component: () => import("@/views/AdminView.vue"),
+      meta: { requiresAuth: true, requiresAdmin: true },
+    },
   ],
 });
 
-// 路由守卫:未登录访问受保护页 → 跳登录
+// 路由守卫:未登录访问受保护页 → 跳登录;非管理员访问后台 → 回对话
 router.beforeEach((to) => {
   const auth = useAuthStore();
   if (to.meta.requiresAuth && !auth.token) {
     return { name: "login" };
   }
-  if (to.name === "login" && auth.token) {
+  if (to.meta.requiresAdmin && !auth.isAdmin) {
     return { name: "chat" };
+  }
+  if (to.name === "login" && auth.token) {
+    return { name: auth.isAdmin ? "admin" : "chat" };
   }
 });
 

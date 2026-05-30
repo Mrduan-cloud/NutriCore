@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse
 from loguru import logger
 
 from app.api import (
+    routes_admin,
     routes_auth,
     routes_chat,
     routes_health,
@@ -17,6 +18,7 @@ from app.api import (
     routes_profile,
     routes_screening,
 )
+from app.auth.bootstrap import ensure_auth_seed
 from app.config import get_settings
 from app.core.db import close_db, init_db
 from app.core.storage import ensure_bucket
@@ -30,10 +32,19 @@ async def lifespan(app: FastAPI):
     setup_logging()
     s = get_settings()
     logger.info("starting {} env={}", s.app_name, s.app_env)
+
+    # 安全自检:生产环境若仍用默认敏感配置 → 直接拒启(fail fast);开发期仅告警。
+    insecure = s.insecure_defaults()
+    if insecure:
+        if s.is_prod:
+            raise RuntimeError(f"生产环境禁止使用默认敏感配置: {', '.join(insecure)}")
+        logger.warning("⚠ 仍在使用默认敏感配置(生产务必覆盖): {}", ", ".join(insecure))
+
     try:
         await init_db()
+        await ensure_auth_seed()
     except Exception as e:
-        logger.warning("DB init failed (will retry on demand): {}", e)
+        logger.warning("DB init / auth seed failed (will retry on demand): {}", e)
     try:
         ensure_bucket()
     except Exception as e:
@@ -68,6 +79,7 @@ def create_app() -> FastAPI:
 
     app.include_router(routes_health.router, tags=["健康检查"])
     app.include_router(routes_auth.router, prefix="/api/auth", tags=["鉴权"])
+    app.include_router(routes_admin.router, prefix="/api/admin", tags=["管理后台"])
     app.include_router(routes_chat.router, prefix="/api/chat", tags=["AI 营养师"])
     app.include_router(routes_screening.router, prefix="/api/screening", tags=["营养风险筛查"])
     app.include_router(routes_plan.router, prefix="/api/plan", tags=["个性化营养方案"])

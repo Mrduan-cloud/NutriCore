@@ -371,6 +371,15 @@ function onLogout() {
           @click="showAvatarPicker = true"
         />
         <span class="uid">{{ auth.userId }}</span>
+        <button
+          v-if="auth.isAdmin"
+          type="button"
+          class="logout-btn admin-btn"
+          title="管理后台"
+          @click="router.push('/admin')"
+        >
+          后台
+        </button>
         <n-popconfirm @positive-click="onLogout">
           <template #trigger>
             <button type="button" class="logout-btn">退出</button>
@@ -771,6 +780,11 @@ function onLogout() {
   border-radius: 8px;
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s;
+}
+.admin-btn {
+  background: rgba(120, 220, 200, 0.18);
+  border-color: rgba(120, 220, 200, 0.45);
+  color: #d7f5ee;
 }
 .logout-btn:hover {
   background: rgba(255, 255, 255, 0.2);
