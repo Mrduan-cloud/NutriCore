@@ -17,6 +17,7 @@ import { useConversationStore, type ChatMessage } from "@/stores/conversations";
 import EchartBlock from "@/components/EchartBlock.vue";
 import ShareDialog from "@/components/ShareDialog.vue";
 import CapIcon from "@/components/CapIcon.vue";
+import AgentArt from "@/components/AgentArt.vue";
 
 // Markdown 渲染器:html:false 防 XSS,breaks:false 避免单换行变 <br> 撑大间距
 const md = new MarkdownIt({ html: false, linkify: true, breaks: false });
@@ -517,9 +518,10 @@ function onLogout() {
               v-for="c in capabilities"
               :key="c.key"
               class="cap-card"
+              :class="`theme-${c.key}`"
               @click="send(c.prompt)"
             >
-              <div class="cap-icon"><cap-icon :name="c.key" :size="21" /></div>
+              <div class="cap-art"><agent-art :name="c.key" :size="54" /></div>
               <div class="cap-name">{{ c.name }}</div>
               <div class="cap-desc">{{ c.desc }}</div>
               <div class="cap-try">{{ c.prompt }}</div>
@@ -1023,73 +1025,144 @@ function onLogout() {
   margin: 0 auto;
 }
 .welcome {
+  position: relative;
   text-align: center;
-  margin-top: 3vh;
+  margin-top: 4vh;
   color: #374151;
 }
+/* 欢迎区柔光背景:几团品牌 / Agent 主题色的柔和光晕,告别纯白单调 */
+.welcome::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: -40px;
+  width: 760px;
+  height: 520px;
+  transform: translateX(-50%);
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(220px 200px at 22% 28%, rgba(20, 184, 166, 0.16), transparent 70%),
+    radial-gradient(220px 200px at 80% 22%, rgba(245, 158, 11, 0.14), transparent 70%),
+    radial-gradient(240px 220px at 30% 82%, rgba(34, 197, 94, 0.14), transparent 70%),
+    radial-gradient(240px 220px at 82% 80%, rgba(124, 108, 240, 0.14), transparent 70%);
+  filter: blur(8px);
+}
+.welcome > * {
+  position: relative;
+  z-index: 1;
+}
 .welcome-logo {
-  font-size: 44px;
+  font-size: 38px;
+  line-height: 1;
+  width: 76px;
+  height: 76px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 24px;
+  background: radial-gradient(circle at 50% 38%, #ffffff, #ecf7f4);
+  box-shadow: 0 10px 26px rgba(47, 139, 137, 0.18), 0 0 0 1px rgba(47, 139, 137, 0.08) inset;
 }
 .welcome h2 {
-  margin: 8px 0 4px;
-  font-size: 21px;
+  margin: 16px 0 4px;
+  font-size: 22px;
+  color: #14403f;
 }
 .welcome p {
   color: #6b7280;
-  margin-bottom: 18px;
+  margin-bottom: 22px;
   font-size: 13.5px;
 }
 /* 欢迎页:4 个子 Agent 能力卡片(点击直接发起代表性提问) */
 .cap-cards {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  max-width: 560px;
+  gap: 14px;
+  max-width: 600px;
   margin: 0 auto;
 }
 .cap-card {
+  position: relative;
+  overflow: hidden;
   text-align: left;
   background: #fff;
   border: 1px solid #e9efee;
-  border-radius: 16px;
-  padding: 16px;
+  border-radius: 18px;
+  padding: 18px;
   cursor: pointer;
   transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
   box-shadow: 0 1px 2px rgba(16, 40, 39, 0.04);
 }
+/* 卡片右上角的主题色柔光晕染(随主题变量上色) */
+.cap-card::after {
+  content: "";
+  position: absolute;
+  top: -40px;
+  right: -40px;
+  width: 130px;
+  height: 130px;
+  border-radius: 50%;
+  background: var(--accent-soft, rgba(47, 139, 137, 0.1));
+  opacity: 0.7;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+  pointer-events: none;
+}
 .cap-card:hover {
-  border-color: #bfe3dd;
-  box-shadow: 0 10px 28px rgba(47, 139, 137, 0.16);
+  border-color: var(--accent, #bfe3dd);
+  box-shadow: 0 14px 32px var(--accent-soft, rgba(47, 139, 137, 0.18));
   transform: translateY(-3px);
 }
-.cap-icon {
-  line-height: 1;
-  width: 40px;
-  height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #2f8b89; /* SVG 用 currentColor → 品牌绿 */
-  background: linear-gradient(145deg, #eaf6f4, #f3faf9);
-  border: 1px solid #e2efed;
-  border-radius: 12px;
+.cap-card:hover::after {
+  opacity: 1;
+  transform: scale(1.15);
+}
+/* 各 Agent 专属主题色 */
+.cap-card.theme-consult {
+  --accent: #14b8a6;
+  --accent-soft: rgba(20, 184, 166, 0.14);
+}
+.cap-card.theme-screening {
+  --accent: #f59e0b;
+  --accent-soft: rgba(245, 158, 11, 0.14);
+}
+.cap-card.theme-plan {
+  --accent: #22c55e;
+  --accent-soft: rgba(34, 197, 94, 0.14);
+}
+.cap-card.theme-insight {
+  --accent: #7c6cf0;
+  --accent-soft: rgba(124, 108, 240, 0.16);
+}
+.cap-art {
+  position: relative;
+  z-index: 1;
+  line-height: 0;
+  filter: drop-shadow(0 6px 12px var(--accent-soft, rgba(47, 139, 137, 0.18)));
 }
 .cap-name {
-  margin-top: 10px;
+  position: relative;
+  z-index: 1;
+  margin-top: 13px;
   font-weight: 700;
   color: #14403f;
-  font-size: 14.5px;
+  font-size: 15px;
 }
 .cap-desc {
-  margin-top: 2px;
+  position: relative;
+  z-index: 1;
+  margin-top: 3px;
   font-size: 12px;
   color: #6b7280;
 }
 .cap-try {
-  margin-top: 8px;
+  position: relative;
+  z-index: 1;
+  margin-top: 10px;
   font-size: 12px;
-  color: #2f8b89;
-  background: #eef6f5;
+  color: var(--accent, #2f8b89);
+  background: var(--accent-soft, #eef6f5);
   border-radius: 8px;
   padding: 5px 9px;
 }
