@@ -13,56 +13,40 @@ const username = ref("李哲");
 const password = ref("nutricore2024");
 const loading = ref(false);
 
-// 用户列表(供快速选择)+ 添加用户
-const users = ref<string[]>(["李哲", "林悦"]);
-const showAdd = ref(false);
-const newUser = ref("");
-const adding = ref(false);
+// 演示人设(仅 is_demo 账号,经 /demo-accounts 暴露,不泄露真实用户名)
+const demoUsers = ref<string[]>(["李哲", "林悦"]);
+// 演示口令(供快速体验一键填充)
+const DEMO_PASSWORD = "nutricore2024";
 
-// 已知演示人设的画像速记(只为登录页一眼可读,新建用户无标签)
 const PERSONA_HINTS: Record<string, string> = {
   "李哲": "男 · 高血压 · 控盐",
   "林悦": "女 · 素食 · 减脂",
 };
 function personaHint(u: string): string {
-  return PERSONA_HINTS[u] || "";
+  return PERSONA_HINTS[u] || "演示账号";
 }
 
-async function fetchUsers() {
+// 注册
+const showReg = ref(false);
+const regUser = ref("");
+const regPwd = ref("");
+const regPwd2 = ref("");
+const registering = ref(false);
+
+async function fetchDemoUsers() {
   try {
-    const { data } = await axios.get("/api/auth/users");
-    // demo / xinxin 固定置顶,其余去重补上
-    users.value = [...new Set(["李哲", "林悦", ...(data.users || [])])];
+    const { data } = await axios.get("/api/auth/demo-accounts");
+    if (Array.isArray(data.users) && data.users.length) demoUsers.value = data.users;
   } catch {
-    users.value = ["demo", "xinxin"];
+    /* 用默认演示人设兜底 */
   }
 }
+onMounted(fetchDemoUsers);
 
-onMounted(fetchUsers);
-
-function pickUser(u: string) {
+// 点选演示人设:同时填入用户名 + 演示口令,一键可登
+function pickDemo(u: string) {
   username.value = u;
-}
-
-async function onAddUser() {
-  const name = newUser.value.trim();
-  if (!name) {
-    message.warning("请输入用户名");
-    return;
-  }
-  adding.value = true;
-  try {
-    await axios.post("/api/auth/register", { username: name, password: password.value });
-    message.success(`用户「${name}」已创建`);
-    await fetchUsers();
-    username.value = name;
-    newUser.value = "";
-    showAdd.value = false;
-  } catch (e: any) {
-    message.error(e?.response?.data?.detail || "创建失败,请重试");
-  } finally {
-    adding.value = false;
-  }
+  password.value = DEMO_PASSWORD;
 }
 
 async function onLogin() {
@@ -74,11 +58,29 @@ async function onLogin() {
   try {
     await auth.login(username.value, password.value);
     message.success("登录成功");
-    router.push("/chat");
+    router.push(auth.isAdmin ? "/admin" : "/chat");
   } catch (e: any) {
     message.error(e?.response?.data?.detail || "登录失败,请重试");
   } finally {
     loading.value = false;
+  }
+}
+
+async function onRegister() {
+  const u = regUser.value.trim();
+  if (!u) return message.warning("请输入用户名");
+  if (regPwd.value.length < 6) return message.warning("口令至少 6 位");
+  if (regPwd.value !== regPwd2.value) return message.warning("两次口令不一致");
+  registering.value = true;
+  try {
+    await auth.register(u, regPwd.value);
+    message.success(`欢迎,${u}！`);
+    showReg.value = false;
+    router.push("/chat");
+  } catch (e: any) {
+    message.error(e?.response?.data?.detail || "注册失败,请重试");
+  } finally {
+    registering.value = false;
   }
 }
 </script>
@@ -95,60 +97,74 @@ async function onLogin() {
       <h2 class="title">登录</h2>
       <n-form @submit.prevent="onLogin">
         <n-form-item label="用户名">
-          <n-input v-model:value="username" placeholder="demo-001" @keyup.enter="onLogin" />
+          <n-input v-model:value="username" placeholder="你的用户名" @keyup.enter="onLogin" />
         </n-form-item>
         <n-form-item label="口令">
           <n-input
             v-model:value="password"
             type="password"
             show-password-on="click"
-            placeholder="demo123"
+            placeholder="你的口令"
             @keyup.enter="onLogin"
           />
         </n-form-item>
 
         <div class="personas">
-          <span class="p-label">演示人设 · 点选快速体验</span>
+          <span class="p-label">演示人设 · 一键填充体验</span>
           <button
-            v-for="u in users"
+            v-for="u in demoUsers"
             :key="u"
             type="button"
             class="persona"
             :class="{ active: u === username }"
-            @click="pickUser(u)"
+            @click="pickDemo(u)"
           >
             <span class="p-name">{{ u }}</span>
-            <span v-if="personaHint(u)" class="p-tag">{{ personaHint(u) }}</span>
+            <span class="p-tag">{{ personaHint(u) }}</span>
           </button>
-          <button type="button" class="persona add" @click="showAdd = true">＋ 添加</button>
         </div>
 
-        <n-button
-          type="primary"
-          block
-          size="large"
-          :loading="loading"
-          @click="onLogin"
-        >
+        <n-button type="primary" block size="large" :loading="loading" @click="onLogin">
           登 录
         </n-button>
+        <div class="reg-row">
+          还没有账号?<a class="reg-link" @click="showReg = true">注册新用户</a>
+        </div>
       </n-form>
-      <p class="hint">体验账号:李哲 / 林悦 · 口令 nutricore2024</p>
+      <p class="hint">演示账号:李哲 / 林悦 · 口令 nutricore2024</p>
+      <p class="hint admin-hint">管理后台:admin · 口令 nutricore-admin-2024</p>
     </n-card>
 
-    <!-- 添加用户 -->
-    <n-modal v-model:show="showAdd" preset="card" title="添加用户" style="width: 360px">
-      <n-input
-        v-model:value="newUser"
-        placeholder="字母 / 数字 / 下划线,1-32 位"
-        :disabled="adding"
-        @keyup.enter="onAddUser"
-      />
-      <p class="add-hint">将以当前口令创建(默认 nutricore2024)</p>
+    <!-- 注册 -->
+    <n-modal v-model:show="showReg" preset="card" title="注册新用户" style="width: 380px">
+      <n-form @submit.prevent="onRegister">
+        <n-form-item label="用户名">
+          <n-input v-model:value="regUser" placeholder="中文 / 字母 / 数字 / 下划线,1-32 位" />
+        </n-form-item>
+        <n-form-item label="设置口令">
+          <n-input
+            v-model:value="regPwd"
+            type="password"
+            show-password-on="click"
+            placeholder="至少 6 位"
+          />
+        </n-form-item>
+        <n-form-item label="确认口令">
+          <n-input
+            v-model:value="regPwd2"
+            type="password"
+            show-password-on="click"
+            placeholder="再输入一次"
+            @keyup.enter="onRegister"
+          />
+        </n-form-item>
+      </n-form>
       <template #footer>
-        <div class="add-actions">
-          <n-button :disabled="adding" @click="showAdd = false">取消</n-button>
-          <n-button type="primary" :loading="adding" @click="onAddUser">创建并选择</n-button>
+        <div class="reg-actions">
+          <n-button :disabled="registering" @click="showReg = false">取消</n-button>
+          <n-button type="primary" :loading="registering" @click="onRegister">
+            注册并登录
+          </n-button>
         </div>
       </template>
     </n-modal>
@@ -272,25 +288,21 @@ async function onLogin() {
   font-size: 11px;
   color: #6b8b88;
 }
-.persona.add {
-  justify-content: center;
-  align-items: center;
-  color: #6b7280;
-  background: #fff;
-  border-style: dashed;
-  border-color: #cbd5e1;
+.reg-row {
+  text-align: center;
+  margin-top: 14px;
   font-size: 13px;
+  color: #6b7280;
 }
-.persona.add:hover {
-  border-color: #2f8b89;
+.reg-link {
   color: #2f8b89;
+  font-weight: 600;
+  cursor: pointer;
 }
-.add-hint {
-  font-size: 12px;
-  color: #9ca3af;
-  margin-top: 8px;
+.reg-link:hover {
+  text-decoration: underline;
 }
-.add-actions {
+.reg-actions {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
@@ -299,7 +311,12 @@ async function onLogin() {
   text-align: center;
   color: #9ca3af;
   font-size: 13px;
-  margin-top: 14px;
+  margin-top: 12px;
+}
+.admin-hint {
+  margin-top: 2px;
+  color: #b8c0c0;
+  font-size: 12px;
 }
 .footer {
   margin-top: 24px;

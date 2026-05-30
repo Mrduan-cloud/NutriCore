@@ -5,7 +5,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
 import jwt
-from fastapi import Header, HTTPException, status
+from fastapi import Depends, Header, HTTPException, status
 from pydantic import BaseModel
 
 from app.config import get_settings
@@ -40,3 +40,10 @@ async def get_current_user(authorization: Annotated[str | None, Header()] = None
     if not authorization or not authorization.lower().startswith("bearer "):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="missing Bearer token")
     return decode_token(authorization[7:])
+
+
+async def require_admin(user: Annotated[CurrentUser, Depends(get_current_user)]) -> CurrentUser:
+    """管理员守卫:JWT 角色非 admin 一律 403。"""
+    if user.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="需要管理员权限")
+    return user
