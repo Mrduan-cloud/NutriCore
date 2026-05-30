@@ -200,10 +200,19 @@ def _conversation_text(state: dict[str, Any], limit: int = 12) -> str:
 
 
 def _screening_in_progress(state: dict[str, Any]) -> bool:
-    """最近一条营养师消息是否处于 NRS-2002 筛查流程中(用于多轮衔接路由)。"""
+    """最近一条营养师消息是否处于 NRS-2002 筛查**进行中**(未出结果)。
+
+    历史 bug:评分结果消息里也包含 "NRS-2002 营养风险筛查" 字样,导致筛查完成后
+    用户的下一句提问(例如点 quick reply "体重下降可能是什么原因?")被误判为
+    "筛查衔接" → 重新跑一遍流程、原样吐回结果。
+    修复:见到 "评分结果 / 总分:/ 下次复评" 等"已完成"标志直接返回 False。
+    """
+    completion_markers = ("评分结果(确定性计算)", "**总分:", "**下次复评:")
     for msg in reversed(state.get("messages", []) or []):
         if _msg_role(msg) == "ai":
             text = _msg_text(msg)
+            if any(m in text for m in completion_markers):
+                return False  # 流程已结束,后续提问交给正常意图分类
             return ("NRS-2002" in text) or ("营养风险筛查" in text)
     return False
 
