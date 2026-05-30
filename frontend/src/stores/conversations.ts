@@ -40,8 +40,33 @@ function load(uid: string): Conversation[] {
   }
 }
 
+// 只保留最近 N 条会话,防止历史 + 图表配置无限增长撑爆 localStorage(~5MB)
+const MAX_CONVERSATIONS = 40;
+
 function persist(uid: string, list: Conversation[]) {
-  localStorage.setItem(keyFor(uid), JSON.stringify(list));
+  // 置顶的优先保留,其余按原顺序截断到上限
+  const pinned = list.filter((c) => c.pinned);
+  const rest = list.filter((c) => !c.pinned);
+  const kept = [...pinned, ...rest].slice(0, MAX_CONVERSATIONS);
+  try {
+    localStorage.setItem(keyFor(uid), JSON.stringify(kept));
+  } catch {
+    // 配额超限等异常:丢弃图表配置(占大头)后再试一次,实在不行就静默放弃
+    try {
+      const slim = kept.map((c) => ({
+        ...c,
+        messages: c.messages.map((m) => {
+          const copy: ChatMessage = { ...m };
+          delete copy.charts;
+          delete copy.chart;
+          return copy;
+        }),
+      }));
+      localStorage.setItem(keyFor(uid), JSON.stringify(slim));
+    } catch {
+      /* 持久化失败不影响当前会话内存中的使用 */
+    }
+  }
 }
 
 export const useConversationStore = defineStore("conversations", () => {
