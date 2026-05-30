@@ -575,11 +575,13 @@ def _format_insight_md(result: dict) -> str:
         return "暂时没有查询到你的健康数据。"
     rows = result.get("rows") or []
     insight = result.get("insight")
-    head = (
-        f"已基于你近 **{len(rows)} 天**的健康数据生成洞察:"
-        if rows
-        else "已为你生成健康数据洞察:"
-    )
+    # 多行(按天)→ 说"近 N 天";单行多为聚合(日均/占比),不宜谎称"近 1 天"
+    if len(rows) >= 2:
+        head = f"已基于你近 **{len(rows)} 天**的健康数据生成洞察:"
+    elif rows:
+        head = "已基于你的健康数据生成洞察:"
+    else:
+        head = "已为你生成健康数据洞察:"
     if isinstance(insight, dict):
         seg = [
             ("概况", insight.get("overview")),
