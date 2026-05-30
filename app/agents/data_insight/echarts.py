@@ -31,11 +31,13 @@ _NUTRIENT_TARGETS: dict[str, tuple[str, float]] = {
 }
 
 
+# 注:图表不再渲染标题 —— 问题/解读已在对话气泡里,图内重复长标题反而拥挤。
+# title 入参保留(语义/未来导出用),当前不画到图上。
+
 def build_line_option(title: str, x: list, y: list, y_label: str = "") -> dict[str, Any]:
     return {
-        "title": {"text": title, "left": "center"},
         "tooltip": {"trigger": "axis"},
-        "grid": {"left": 50, "right": 30, "top": 60, "bottom": 40},
+        "grid": {"left": 48, "right": 28, "top": 28, "bottom": 36},
         "xAxis": {"type": "category", "data": x},
         "yAxis": {"type": "value", "name": y_label},
         "series": [{
@@ -49,9 +51,8 @@ def build_line_option(title: str, x: list, y: list, y_label: str = "") -> dict[s
 def build_bar_option(title: str, x: list, y: list, y_label: str = "") -> dict[str, Any]:
     return {
         "color": _PALETTE,
-        "title": {"text": title, "left": "center"},
         "tooltip": {"trigger": "axis"},
-        "grid": {"left": 50, "right": 30, "top": 60, "bottom": 40},
+        "grid": {"left": 48, "right": 28, "top": 28, "bottom": 36},
         "xAxis": {"type": "category", "data": x},
         "yAxis": {"type": "value", "name": y_label},
         "series": [{
@@ -65,14 +66,13 @@ def build_pie_option(title: str, names: list, values: list) -> dict[str, Any]:
     data = [{"name": str(n), "value": v} for n, v in zip(names, values, strict=True)]
     return {
         "color": _PALETTE,
-        "title": {"text": title, "left": "center"},
         "tooltip": {"trigger": "item", "formatter": "{b}: {c} ({d}%)"},
         "legend": {"bottom": 0, "left": "center"},
         "series": [{
-            "type": "pie", "radius": ["42%", "68%"], "center": ["50%", "46%"],
+            "type": "pie", "radius": ["40%", "62%"], "center": ["50%", "46%"],
             "avoidLabelOverlap": True,
             "itemStyle": {"borderColor": "#fff", "borderWidth": 2},
-            "label": {"formatter": "{b}\n{d}%"},
+            "label": {"formatter": "{b} {d}%"},
             "data": data,
         }],
     }
@@ -84,10 +84,9 @@ def build_radar_option(
     """营养均衡雷达:实际(日均) vs 推荐,一张图看多维度是否达标。"""
     return {
         "color": _PALETTE,
-        "title": {"text": title, "left": "center"},
         "tooltip": {},
         "legend": {"bottom": 0, "data": ["实际(日均)", "推荐"]},
-        "radar": {"indicator": indicators, "radius": "62%", "center": ["50%", "54%"]},
+        "radar": {"indicator": indicators, "radius": "60%", "center": ["50%", "48%"]},
         "series": [{
             "type": "radar",
             "data": [
