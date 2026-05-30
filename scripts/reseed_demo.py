@@ -19,9 +19,9 @@ from app.observability.logging import setup_logging
 from app.schemas.models import DailyIntake, UserProfileModel, Vitals
 from scripts.seed import ROOT, seed_csv, seed_user
 
-# ---------------- xinxin 人设(内联,无需额外 CSV) ----------------
+# ---------------- 林悦 人设(内联,无需额外 CSV) ----------------
 XINXIN_PROFILE = {
-    "user_id": "xinxin",
+    "user_id": "林悦",
     "age": 27,
     "gender": "female",
     "height_cm": 163,
@@ -66,16 +66,16 @@ async def _seed_xinxin() -> None:
     await _seed_profile(XINXIN_PROFILE)
     for day, w, steps, sleep in XINXIN_VITALS:
         await Vitals.update_or_create(
-            user_id="xinxin", date=date(2026, 5, day),
+            user_id="林悦", date=date(2026, 5, day),
             defaults={"weight_kg": w, "steps": steps, "sleep_hours": sleep},
         )
     for day, kcal, protein, carb, fat, water in XINXIN_INTAKE:
         await DailyIntake.update_or_create(
-            user_id="xinxin", date=date(2026, 5, day),
+            user_id="林悦", date=date(2026, 5, day),
             defaults={"kcal": kcal, "protein": protein, "carb": carb,
                       "fat": fat, "water_ml": water},
         )
-    logger.info("xinxin persona seeded (profile + {} days data)", len(XINXIN_VITALS))
+    logger.info("林悦 persona seeded (profile + {} days data)", len(XINXIN_VITALS))
 
 
 async def main() -> None:

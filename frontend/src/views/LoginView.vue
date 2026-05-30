@@ -9,20 +9,20 @@ const router = useRouter();
 const message = useMessage();
 const auth = useAuthStore();
 
-const username = ref("demo");
+const username = ref("李哲");
 const password = ref("nutricore2024");
 const loading = ref(false);
 
 // 用户列表(供快速选择)+ 添加用户
-const users = ref<string[]>(["demo", "xinxin"]);
+const users = ref<string[]>(["李哲", "林悦"]);
 const showAdd = ref(false);
 const newUser = ref("");
 const adding = ref(false);
 
 // 已知演示人设的画像速记(只为登录页一眼可读,新建用户无标签)
 const PERSONA_HINTS: Record<string, string> = {
-  demo: "男 · 高血压 · 控盐",
-  xinxin: "女 · 素食 · 减脂",
+  "李哲": "男 · 高血压 · 控盐",
+  "林悦": "女 · 素食 · 减脂",
 };
 function personaHint(u: string): string {
   return PERSONA_HINTS[u] || "";
@@ -32,7 +32,7 @@ async function fetchUsers() {
   try {
     const { data } = await axios.get("/api/auth/users");
     // demo / xinxin 固定置顶,其余去重补上
-    users.value = [...new Set(["demo", "xinxin", ...(data.users || [])])];
+    users.value = [...new Set(["李哲", "林悦", ...(data.users || [])])];
   } catch {
     users.value = ["demo", "xinxin"];
   }
@@ -133,7 +133,7 @@ async function onLogin() {
           登 录
         </n-button>
       </n-form>
-      <p class="hint">演示账号:demo / xinxin · 口令 nutricore2024</p>
+      <p class="hint">体验账号:李哲 / 林悦 · 口令 nutricore2024</p>
     </n-card>
 
     <!-- 添加用户 -->
