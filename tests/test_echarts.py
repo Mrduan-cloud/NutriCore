@@ -86,15 +86,15 @@ def test_mixed_unit_nutrients_never_become_pie():
     assert "pie" not in types
 
 
-def test_macro_composition_pie_by_grams():
-    """三大产能营养素占比 → 按克数(与解读文本一致),而非热量加权。"""
-    rows = [{"avg_carb": 247, "avg_protein": 80, "avg_fat": 64}]
+def test_macro_composition_pie_by_energy():
+    """三大产能营养素占比 → 按供能比(热量):碳水/蛋白 ×4、脂肪 ×9 kcal/g。"""
+    rows = [{"avg_carb": 100, "avg_protein": 100, "avg_fat": 100}]
     chart = rows_to_chart(rows, "三大产能营养素占比")
     assert _type(chart) == "pie"
     vals = {d["name"]: d["value"] for d in chart["series"][0]["data"]}
-    assert vals["碳水(g)"] == 247
-    assert vals["蛋白质(g)"] == 80
-    assert vals["脂肪(g)"] == 64
+    assert vals["碳水"] == 400  # 100g × 4
+    assert vals["蛋白质"] == 400  # 100g × 4
+    assert vals["脂肪"] == 900  # 100g × 9
 
 
 def test_build_charts_offers_alternatives():
