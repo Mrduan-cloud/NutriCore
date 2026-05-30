@@ -32,17 +32,17 @@ async def lifespan(app: FastAPI):
     logger.info("starting {} env={}", s.app_name, s.app_env)
     try:
         await init_db()
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.warning("DB init failed (will retry on demand): {}", e)
     try:
         ensure_bucket()
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.warning("MinIO bucket ensure failed: {}", e)
     yield
     logger.info("shutting down")
     try:
         await close_db()
-    except Exception:  # noqa: BLE001
+    except Exception:
         pass
 
 
@@ -78,7 +78,7 @@ def create_app() -> FastAPI:
         app.add_api_route(s.metrics_path, metrics_endpoint, methods=["GET"], include_in_schema=False)
 
     @app.exception_handler(Exception)
-    async def _unhandled(request, exc):  # noqa: ANN001
+    async def _unhandled(request, exc):
         logger.exception("unhandled error")
         return JSONResponse(status_code=500, content={"type": "internal_error", "detail": str(exc)})
 

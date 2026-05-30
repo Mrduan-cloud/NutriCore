@@ -38,6 +38,6 @@ async def is_healthy() -> bool:
         conn = Tortoise.get_connection("default")
         await conn.execute_query("SELECT 1")
         return True
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.warning("db health failed: {}", e)
         return False

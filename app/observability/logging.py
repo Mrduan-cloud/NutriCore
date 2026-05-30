@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import logging
 import sys
+
 from loguru import logger
 
 from app.config import get_settings
@@ -28,7 +29,7 @@ def _json_sink(message):
 class InterceptHandler(logging.Handler):
     """把 stdlib logging 重定向到 loguru。"""
 
-    def emit(self, record):  # noqa: D401
+    def emit(self, record):
         try:
             level = logger.level(record.levelname).name
         except ValueError:

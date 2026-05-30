@@ -8,9 +8,9 @@
 """
 from __future__ import annotations
 
-from prometheus_client import Counter, Histogram, CONTENT_TYPE_LATEST, generate_latest
 from fastapi import Request
 from fastapi.responses import Response
+from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 
 llm_requests = Counter(
     "nutricore_llm_requests_total",

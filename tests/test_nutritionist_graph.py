@@ -17,11 +17,7 @@ import pytest
 from langchain_core.messages import HumanMessage
 
 from app.agents.nutritionist import nodes
-from app.agents.nutritionist.graph import (
-    NutritionistState,
-    _route,
-    build_nutritionist_graph,
-)
+from app.agents.nutritionist.graph import _route, build_nutritionist_graph
 
 
 # =========================================================================
@@ -37,12 +33,16 @@ def patch_chat_complete(monkeypatch):
     """
 
     def _apply(stub):
-        # intent_router 用的是 nodes 模块里的 chat_complete (from app.core.llm import chat_complete)
+        # intent_router / general_consult 用的是 nodes 模块里的 chat_complete
         monkeypatch.setattr(nodes, "chat_complete", stub, raising=True)
         # memory_node → extract_entities 用的是 memory 模块里的 chat_complete
         from app.agents.nutritionist import memory as memory_mod
 
         monkeypatch.setattr(memory_mod, "chat_complete", stub, raising=True)
+        # 风险筛查 screen_step 的槽位抽取走 risk_screening.conversation 的 chat_complete
+        from app.agents.risk_screening import conversation as screening_conv
+
+        monkeypatch.setattr(screening_conv, "chat_complete", stub, raising=True)
 
     return _apply
 
@@ -73,6 +73,31 @@ def patch_dify_workflow(monkeypatch):
     return _apply
 
 
+@pytest.fixture(autouse=True)
+def offline_consult(monkeypatch):
+    """默认把 consult 的 RAG 检索打成空 —— 让整套图测试**完全离线**,
+    不连 Milvus / 不加载 reranker 模型。需要真实检索的测试可自行覆盖。
+    """
+
+    async def _no_rag(query, top_k=3):
+        return "", []
+
+    monkeypatch.setattr(nodes, "consult_rag_context", _no_rag, raising=True)
+
+
+@pytest.fixture
+def patch_consult(monkeypatch):
+    """按需让 consult RAG 返回指定证据 + 引用(覆盖 autouse 的空实现)。"""
+
+    def _apply(evidence: str = "", citations: list | None = None):
+        async def _stub(query, top_k=3):
+            return evidence, list(citations or [])
+
+        monkeypatch.setattr(nodes, "consult_rag_context", _stub, raising=True)
+
+    return _apply
+
+
 def _make_state(text: str, **extra: Any) -> dict:
     base = {
         "messages": [HumanMessage(content=text)],
@@ -92,8 +117,8 @@ def test_build_nutritionist_graph_does_not_raise():
     assert hasattr(g, "ainvoke")
 
 
-def test_graph_has_all_six_nodes():
-    """6 节点齐全 —— 拓扑契约。改动节点数应该让测试爆掉,防意外删除。"""
+def test_graph_has_all_seven_nodes():
+    """7 节点齐全 —— 拓扑契约。改动节点数应该让测试爆掉,防意外删除。"""
     g = build_nutritionist_graph()
     # LangGraph CompiledStateGraph 把节点放在 .get_graph() 里
     expected = {
@@ -103,6 +128,7 @@ def test_graph_has_all_six_nodes():
         "tool_executor",
         "citation_validator",
         "safety_fallback",
+        "general_consult",  # consult 意图的真实作答节点
     }
     actual = set(g.get_graph().nodes.keys())
     # 'start' / '__start__' 等内部节点不进 expected,只要包含 expected 即可
@@ -114,7 +140,8 @@ def test_route_helper_handles_three_branches():
     """_route 是路由分支的核心,单独验证三种状态。"""
     assert _route({"is_high_risk": True}) == "high_risk"
     assert _route({"selected_subagent": "meal_plan"}) == "subagent"
-    assert _route({}) == "end"
+    # 无子 Agent 且非高风险 = 一般咨询 → general_consult(此前是直接 END)
+    assert _route({}) == "consult"
     # is_high_risk 优先级最高 —— 即使有 selected_subagent 也要先兜底
     assert _route({"is_high_risk": True, "selected_subagent": "meal_plan"}) == "high_risk"
 
@@ -137,7 +164,8 @@ async def test_high_risk_keyword_short_circuits_to_safety_fallback(patch_chat_co
     assert final.get("is_high_risk") is True
     assert final["intent"] == "risk_alert"
     assert final.get("selected_subagent") is None
-    assert "急" in final["final_answer"] or "就医" in final["final_answer"]
+    # safety_fallback 文案导向"前往正规医院 / 专科医生"
+    assert "医院" in final["final_answer"] or "就医" in final["final_answer"]
 
 
 @pytest.mark.asyncio
@@ -175,21 +203,45 @@ async def test_high_risk_keyword_works_with_multimodal_content(patch_chat_comple
 # 路由层 — 4 个意图分支
 # =========================================================================
 @pytest.mark.asyncio
-async def test_consult_intent_ends_without_subagent(patch_chat_complete):
-    """consult 意图 → selected_subagent=None → 直接 END,无 final_answer 覆盖。"""
+async def test_consult_intent_answers_via_general_consult(patch_chat_complete, patch_consult):
+    """consult 意图 → 无子 Agent → general_consult 用 RAG 接地作答(不再直接 END)。
+
+    LLM 返回非 JSON 的自然语言 → intent 默认 consult;general_consult 用同一
+    chat_complete 产出最终答复。RAG 用 patch_consult 打成空 → 离线 + 无引用。
+    """
 
     async def _stub(_prompt, **_):
-        return '{"intent": "consult"}'
+        return "建议优先选全谷物等低 GI 主食,搭配蔬菜与优质蛋白。"
 
     patch_chat_complete(_stub)
+    patch_consult(evidence="", citations=[])  # 知识库无匹配 → 无引用
     g = build_nutritionist_graph()
 
     final = await g.ainvoke(_make_state("低 GI 主食有哪些?"))
 
     assert final["intent"] == "consult"
     assert final.get("selected_subagent") is None
-    # final_answer 没被任何节点写过(因为直接 END)
-    assert "final_answer" not in final or final.get("final_answer") is None
+    # general_consult 产出了真实答复
+    assert "全谷物" in final["final_answer"]
+    # 知识库无匹配 → citations 为空(诚实溯源)
+    assert final.get("citations") == []
+
+
+@pytest.mark.asyncio
+async def test_consult_attaches_citations_when_kb_matches(patch_chat_complete, patch_consult):
+    """consult 命中知识库时,general_consult 应回传真实引用。"""
+
+    async def _stub(_prompt, **_):
+        return "膳食指南建议每日全谷物 50-150g。"
+
+    patch_chat_complete(_stub)
+    patch_consult(evidence="[dietary_guide:c1] 全谷物...", citations=["dietary_guide:c1"])
+    g = build_nutritionist_graph()
+
+    final = await g.ainvoke(_make_state("每天该吃多少全谷物?"))
+
+    assert final["intent"] == "consult"
+    assert "dietary_guide:c1" in final["citations"]
 
 
 @pytest.mark.asyncio
@@ -205,7 +257,8 @@ async def test_screening_intent_routes_to_dispatcher(patch_chat_complete):
     assert final["intent"] == "screening"
     assert final["selected_subagent"] == "risk_screening"
     assert "营养风险筛查" in final["final_answer"] or "NRS" in final["final_answer"]
-    assert any(c.get("tool") == "risk_screening_intro" for c in final.get("tool_calls", []))
+    # 工具名已从 risk_screening_intro 改为确定性评分链路 nrs2002_screening
+    assert any(c.get("tool") == "nrs2002_screening" for c in final.get("tool_calls", []))
 
 
 @pytest.mark.asyncio
@@ -492,13 +545,18 @@ def llm_must_not_be_called(monkeypatch):
         )
 
     monkeypatch.setattr(nodes, "chat_complete", _boom, raising=True)
-    # memory_node 也用同一个 chat_complete (经 extract_entities),
-    # 测试里只检 intent_router 行为,所以同时屏蔽 memory 的 LLM 调用 —— 用普通 stub 返回 {}
-    from app.agents.nutritionist import memory as memory_mod
 
     async def _empty(_prompt, **_):
         return "{}"
+
+    # memory_node(extract_entities)与筛查 screen_step(槽位抽取)各自有 chat_complete;
+    # 它们在「规则命中后的子 Agent」里被合法调用 —— 这里用 benign stub 让其离线、确定,
+    # 同时 _boom 仍守住「intent_router 本身不得再调 LLM」这条核心断言。
+    from app.agents.nutritionist import memory as memory_mod
+    from app.agents.risk_screening import conversation as screening_conv
+
     monkeypatch.setattr(memory_mod, "chat_complete", _empty, raising=True)
+    monkeypatch.setattr(screening_conv, "chat_complete", _empty, raising=True)
 
 
 @pytest.mark.asyncio

@@ -9,13 +9,13 @@ from langchain_core.messages import AIMessage, HumanMessage
 from pydantic import BaseModel
 
 from app.agents.nutritionist.graph import build_nutritionist_graph
+from app.agents.nutritionist.memory import recent_turns, remember_turn
 from app.agents.nutritionist.nodes import (
     build_consult_prompt,
     intent_router,
     safety_fallback,
     subagent_dispatcher,
 )
-from app.agents.nutritionist.memory import recent_turns, remember_turn
 from app.agents.nutritionist.prompts import CONSULT_SYSTEM
 from app.auth import CurrentUser, get_current_user
 from app.core.llm import chat_complete_stream
@@ -205,7 +205,7 @@ async def chat_stream(
             await remember_turn(
                 user.user_id, payload.session_id, payload.message, "".join(acc)
             )
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             yield _sse({"type": "error", "message": f"服务暂时不可用:{e.__class__.__name__}"})
 
     return StreamingResponse(

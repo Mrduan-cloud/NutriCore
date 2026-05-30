@@ -13,7 +13,6 @@ from app.agents.meal_plan.validator import validate_plan_strict
 from app.core.llm import chat_complete
 from app.observability.metrics import agent_invocations
 
-
 _SYSTEM = """你是 NutriCore 营养方案生成器。你必须严格输出 JSON，结构如下：
 {
   "user_id": "...",
@@ -25,7 +24,7 @@ _SYSTEM = """你是 NutriCore 营养方案生成器。你必须严格输出 JSON
   ]
 }
 每个食材项形如：
-{"name": "...", "portion_g": 120, "kcal": 180, "citations": ["doc#chunk_id"]}
+{"name": "...", "portion_g": 120, "kcal": 180, "citations": ["doc_id:chunk_id"]}
 约束：
 - 必须 7 天 (day=1..7)
 - 每日总热量在 target_kcal ±10% 内
@@ -85,7 +84,7 @@ async def generate_meal_plan(
     try:
         raw = await chat_complete(prompt, system=_SYSTEM, response_format="json", temperature=0.4)
         plan = _safe_json(raw)
-    except Exception as e:  # noqa: BLE001
+    except Exception:
         logger.exception("LLM plan generation failed")
         agent_invocations.labels(agent="meal_plan", outcome="error").inc()
         raise

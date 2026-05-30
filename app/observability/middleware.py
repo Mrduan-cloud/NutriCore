@@ -17,7 +17,7 @@ class AccessLogMiddleware(BaseHTTPMiddleware):
         with logger.contextualize(request_id=rid):
             try:
                 resp = await call_next(request)
-            except Exception:  # noqa: BLE001
+            except Exception:
                 logger.exception("unhandled exception")
                 raise
             cost = (time.perf_counter() - t0) * 1000

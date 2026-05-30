@@ -1,7 +1,7 @@
 """方案生成专用检索：BM25 + BGE 向量 多路召回 → RRF 融合 → Cross-Encoder 精排。"""
 from __future__ import annotations
 
-from typing import Iterable
+from collections.abc import Iterable
 
 from app.config import get_settings
 from app.rag.hybrid_retrieval import hybrid_search

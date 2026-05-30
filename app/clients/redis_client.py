@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from functools import lru_cache
+
 from loguru import logger
 from redis.asyncio import Redis, from_url
 
@@ -17,6 +18,6 @@ def get_redis() -> Redis:
 async def is_healthy() -> bool:
     try:
         return bool(await get_redis().ping())
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.warning("redis health failed: {}", e)
         return False

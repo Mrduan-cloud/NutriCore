@@ -22,7 +22,6 @@ from reportlab.platypus import (
 from app.agents.risk_screening.schemas import NRSReport
 from app.core.storage import upload_object
 
-
 # 注册中文字体（CID 字体不需要额外文件）
 _FONT_REGISTERED = False
 

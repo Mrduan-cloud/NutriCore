@@ -56,7 +56,7 @@ def _build_milvus_expr(filters: dict) -> str | None:
     """
     parts: list[str] = []
     for k, v in filters.items():
-        if v is None or v == [] or v == "":
+        if v is None or v in ([], ""):
             continue
         if isinstance(v, list):
             for item in v:

@@ -6,7 +6,7 @@ from collections.abc import AsyncIterator
 from functools import lru_cache
 
 from loguru import logger
-from openai import AsyncOpenAI, APIError, APIConnectionError, APITimeoutError
+from openai import APIConnectionError, APIError, APITimeoutError, AsyncOpenAI
 from tenacity import (
     AsyncRetrying,
     retry_if_exception_type,

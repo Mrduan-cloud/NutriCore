@@ -13,7 +13,6 @@ import httpx
 
 from app.auth.jwt import create_access_token
 
-
 SAMPLE_NRS = {
     "age": 32,
     "bmi": 25.5,

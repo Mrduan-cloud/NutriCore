@@ -39,7 +39,7 @@ class UserProfileModel(models.Model):
         }
 
     @classmethod
-    async def upsert_from_dict(cls, data: dict) -> "UserProfileModel":
+    async def upsert_from_dict(cls, data: dict) -> UserProfileModel:
         # 注意:不能叫 update_from_dict —— 那会覆盖 tortoise 内置的同名实例方法,
         # 导致 update_or_create 在更新已存在行时调用到这个 async classmethod 而崩溃。
         user_id = data["user_id"]

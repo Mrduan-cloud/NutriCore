@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 from functools import lru_cache
-from typing import Any
 
 from loguru import logger
 from pymilvus import (
@@ -45,7 +44,7 @@ def is_healthy() -> bool:
     try:
         connect_milvus()
         return utility.list_collections(using=_alias()) is not None
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.warning("milvus health failed: {}", e)
         return False
 

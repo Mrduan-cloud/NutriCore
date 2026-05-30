@@ -8,8 +8,9 @@
 from __future__ import annotations
 
 from typing import Any
-from pydantic import BaseModel, Field, field_validator
+
 from jsonschema import validate as jsonschema_validate
+from pydantic import BaseModel, Field, field_validator
 
 
 class MealItem(BaseModel):

@@ -12,7 +12,6 @@ from app.agents.nutritionist.prompts import CONSULT_SYSTEM, INTENT_PROMPT
 from app.core.llm import chat_complete
 from app.observability.metrics import agent_invocations
 
-
 # 急重症 / 孕产期 —— 紧急,导向"尽快就医"
 ACUTE_RISK_KEYWORDS = (
     "急救", "胸痛", "昏迷", "孕妇", "怀孕", "孕期", "化疗", "透析",
@@ -223,7 +222,7 @@ async def _recent_weight_trend(user_id: str) -> dict[str, Any] | None:
             "delta": round(last - first, 1),
             "days": (pts[-1][0] - pts[0][0]).days,
         }
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.debug("weight trend lookup failed: {}", e)
         return None
 
@@ -281,7 +280,7 @@ async def intent_router(state: dict[str, Any]) -> dict[str, Any]:
             max_tokens=200,
         )
         raw_intent = _extract_json(raw).get("intent", "consult")
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.warning("intent classify failed, fallback to consult: {}", e)
         raw_intent = "consult"
 
@@ -312,7 +311,7 @@ async def subagent_dispatcher(state: dict[str, Any]) -> dict[str, Any]:
         convo = _conversation_text(state) or f"用户:{last_msg}"
         try:
             step = await screen_step(profile, convo, trend, user_id)
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.bind(request_id=state.get("request_id", "-"), user_id=user_id).exception(
                 "risk_screening failed"
             )
@@ -338,7 +337,7 @@ async def subagent_dispatcher(state: dict[str, Any]) -> dict[str, Any]:
                 "tool_calls": [{"tool": "meal_plan.generate"}],
                 "citations": _collect_citations(plan),
             }
-        except Exception:  # noqa: BLE001
+        except Exception:
             # log 完整 stacktrace + request_id 便于排障;不要泄漏给用户
             logger.bind(request_id=state.get("request_id", "-"), user_id=user_id).exception(
                 "meal_plan generation failed"
@@ -355,7 +354,7 @@ async def subagent_dispatcher(state: dict[str, Any]) -> dict[str, Any]:
                 "tool_calls": [{"tool": "data_insight.query"}],
                 "extra": {"insight": result},
             }
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.bind(request_id=state.get("request_id", "-"), user_id=user_id).exception(
                 "data_insight workflow failed"
             )
@@ -432,7 +431,7 @@ async def consult_rag_context(query: str, top_k: int = 3) -> tuple[str, list[str
             collection=s.milvus_collection_guide, query=query, top_k=12
         )
         ranked = cross_encoder_rerank(query, recalled, top_k=top_k) if recalled else []
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.warning("consult retrieval failed, answering without RAG: {}", e)
         return "", []
 
@@ -477,7 +476,7 @@ async def general_consult(state: dict[str, Any]) -> dict[str, Any]:
             temperature=0.3,
             max_tokens=600,
         )
-    except Exception:  # noqa: BLE001
+    except Exception:
         logger.bind(
             request_id=state.get("request_id", "-"),
             user_id=state.get("user_id", "anonymous"),

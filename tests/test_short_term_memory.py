@@ -143,7 +143,7 @@ def test_clear_short_term(fake_redis):
 
 
 def test_degrades_gracefully_when_redis_down(monkeypatch):
-    monkeypatch.setattr(memory, "get_redis", lambda: BrokenRedis())
+    monkeypatch.setattr(memory, "get_redis", BrokenRedis)
 
     async def run():
         # 写失败不抛错;读失败返回 []

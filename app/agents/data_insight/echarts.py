@@ -71,7 +71,7 @@ async def four_paragraph_insight(rows: list[dict], metric: str) -> dict[str, str
         m = re.search(r"\{.*\}", raw, re.DOTALL)
         if m:
             return json.loads(m.group(0))
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.warning("insight generation failed: {}", e)
     return {
         "overview": f"{metric} 共 {len(rows)} 条记录",

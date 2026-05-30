@@ -20,7 +20,6 @@ from app.observability.logging import setup_logging
 from app.rag.ingestion import ingest_markdown_dir
 from app.schemas.models import DailyIntake, UserProfileModel, Vitals
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 

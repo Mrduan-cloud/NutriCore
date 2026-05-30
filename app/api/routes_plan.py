@@ -35,7 +35,7 @@ async def gen_plan(
 
     try:
         plan = await generate_meal_plan(profile, payload.screening_result, payload.user_request)
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         raise HTTPException(500, f"plan generation failed: {e}") from e
 
     pdf_key = await export_meal_plan_pdf(plan, user.user_id)

@@ -51,6 +51,6 @@ async def run_workflow(question: str, user_id: str) -> dict[str, Any]:
             data = await _dify_run(question, user_id)
             data["source"] = "dify"
             return data
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.warning("dify failed, fallback to local: {}", e)
     return await _local_fallback(question, user_id)

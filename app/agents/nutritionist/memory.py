@@ -46,7 +46,7 @@ async def recent_turns(
     key = _stm_key(user_id, session_id)
     try:
         raw = await get_redis().lrange(key, -2 * max_turns, -1)
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.debug("short-term memory read failed ({}), degrade to no-memory", e)
         return []
     out: list[dict[str, str]] = []
@@ -87,7 +87,7 @@ async def remember_turn(
         await r.rpush(key, *payload)
         await r.ltrim(key, -2 * max_turns, -1)
         await r.expire(key, STM_TTL_SECONDS)
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.debug("short-term memory write failed ({}), skipped", e)
 
 
@@ -95,7 +95,7 @@ async def clear_short_term(user_id: str, session_id: str | None) -> None:
     """清空某会话的短期记忆(新开对话 / 显式重置时可调用)。"""
     try:
         await get_redis().delete(_stm_key(user_id, session_id))
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.debug("short-term memory clear failed ({}), ignored", e)
 
 
@@ -163,7 +163,7 @@ async def extract_entities(message: str) -> dict[str, Any]:
             temperature=0.0,
             max_tokens=400,
         )
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.warning("entity extraction failed: {}", e)
         return {}
     return {k: v for k, v in _safe_json(raw).items() if v not in (None, [], "")}

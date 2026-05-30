@@ -9,12 +9,10 @@ import json
 import re
 from functools import lru_cache
 from pathlib import Path
-from typing import Iterable
 
 from rank_bm25 import BM25Okapi
 
 from app.config import get_settings
-
 
 _TOKEN_RE = re.compile(r"[A-Za-z0-9]+|[一-龥]")
 
@@ -46,7 +44,7 @@ def bm25_search(collection: str, query: str, top_k: int = 50) -> list[dict]:
         return []
     scores = bm25.get_scores(tokenize(query))
     ranked = sorted(
-        ((s, d) for s, d in zip(scores, docs) if s > 0),
+        ((s, d) for s, d in zip(scores, docs, strict=True) if s > 0),
         key=lambda x: x[0],
         reverse=True,
     )[:top_k]

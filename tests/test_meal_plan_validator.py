@@ -9,7 +9,7 @@ def _make_plan(extra_day: dict | None = None) -> dict:
         "name": "燕麦",
         "portion_g": 60,
         "kcal": 220,
-        "citations": ["dietary_guide_2022_excerpt#0"],
+        "citations": ["dietary_guide_2022_excerpt:0"],
     }
     day = {
         "day": 1,

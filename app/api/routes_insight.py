@@ -23,6 +23,6 @@ async def query_insight(
         result = await run_workflow(payload.question, user.user_id)
     except ValueError as e:
         raise HTTPException(422, str(e)) from e
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         raise HTTPException(500, f"insight query failed: {e}") from e
     return result

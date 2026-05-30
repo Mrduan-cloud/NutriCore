@@ -19,7 +19,6 @@ from app.observability.logging import setup_logging
 from app.schemas.models import DailyIntake, UserProfileModel, Vitals
 from scripts.seed import ROOT, seed_csv, seed_user
 
-
 # ---------------- xinxin 人设(内联,无需额外 CSV) ----------------
 XINXIN_PROFILE = {
     "user_id": "xinxin",

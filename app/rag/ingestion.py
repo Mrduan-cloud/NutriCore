@@ -8,9 +8,9 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Iterable
 
 from loguru import logger
 
@@ -81,7 +81,7 @@ async def embed_and_upsert(chunks: Iterable[Chunk], collection: str) -> int:
             "metadata": c.metadata,
             "embedding": v,
         }
-        for c, v in zip(chunk_list, vecs)
+        for c, v in zip(chunk_list, vecs, strict=True)
     ]
     n = upsert_chunks(collection, payload)
     logger.info("upserted {} chunks into {}", n, collection)

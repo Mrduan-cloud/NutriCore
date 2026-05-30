@@ -8,13 +8,11 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from loguru import logger
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from app.config import get_settings
 from app.core.llm import chat_complete
-
 
 # 允许暴露给 LLM 的 schema 摘要 — 注意 user_id 字段必须存在
 SCHEMA_FOR_LLM = """
@@ -91,6 +89,6 @@ async def _run_select(sql: str) -> list[dict]:
         async with engine.connect() as conn:
             result = await conn.execute(text(sql))
             cols = list(result.keys())
-            return [dict(zip(cols, row)) for row in result.fetchall()]
+            return [dict(zip(cols, row, strict=True)) for row in result.fetchall()]
     finally:
         await engine.dispose()

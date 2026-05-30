@@ -1,11 +1,11 @@
 """JWT 鉴权封装。"""
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
 import jwt
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Header, HTTPException, status
 from pydantic import BaseModel
 
 from app.config import get_settings
@@ -18,7 +18,7 @@ class CurrentUser(BaseModel):
 
 def create_access_token(user_id: str, role: str = "user", expires_minutes: int | None = None) -> str:
     s = get_settings()
-    expire = datetime.now(timezone.utc) + timedelta(
+    expire = datetime.now(UTC) + timedelta(
         minutes=expires_minutes or s.jwt_access_token_expire_minutes
     )
     payload = {"sub": user_id, "role": role, "exp": expire}
