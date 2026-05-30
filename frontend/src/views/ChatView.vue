@@ -17,7 +17,6 @@ import { useConversationStore, type ChatMessage } from "@/stores/conversations";
 import EchartBlock from "@/components/EchartBlock.vue";
 import ShareDialog from "@/components/ShareDialog.vue";
 import CapIcon from "@/components/CapIcon.vue";
-import AgentArt from "@/components/AgentArt.vue";
 
 // Markdown 渲染器:html:false 防 XSS,breaks:false 避免单换行变 <br> 撑大间距
 const md = new MarkdownIt({ html: false, linkify: true, breaks: false });
@@ -521,7 +520,7 @@ function onLogout() {
               :class="`theme-${c.key}`"
               @click="send(c.prompt)"
             >
-              <div class="cap-art"><agent-art :name="c.key" :size="54" /></div>
+              <div class="cap-icon"><cap-icon :name="c.key" :size="22" /></div>
               <div class="cap-name">{{ c.name }}</div>
               <div class="cap-desc">{{ c.desc }}</div>
               <div class="cap-try">{{ c.prompt }}</div>
@@ -1135,11 +1134,19 @@ function onLogout() {
   --accent: #7c6cf0;
   --accent-soft: rgba(124, 108, 240, 0.16);
 }
-.cap-art {
+/* 原来的线性图标徽章,但底色/图标色吸收所在卡片的主题色,与彩色背景呼应 */
+.cap-icon {
   position: relative;
   z-index: 1;
-  line-height: 0;
-  filter: drop-shadow(0 6px 12px var(--accent-soft, rgba(47, 139, 137, 0.18)));
+  width: 42px;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent, #2f8b89);
+  background: var(--accent-soft, rgba(47, 139, 137, 0.1));
+  border: 1px solid var(--accent-soft, #e2efed);
+  border-radius: 12px;
 }
 .cap-name {
   position: relative;
