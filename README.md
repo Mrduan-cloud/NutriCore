@@ -11,6 +11,31 @@
 
 ---
 
+## 界面预览 | Screenshots
+
+<p align="center">
+  <img src="docs/images/app-chat.png" alt="NutriCore · AI 营养师统一对话界面" width="860">
+  <br/>
+  <sub>四个协作 Agent 的统一入口 · 一句话自动路由到对应子 Agent · 流式作答</sub>
+</p>
+
+<table>
+  <tr>
+    <td width="50%" align="center">
+      <img src="docs/images/app-login.png" alt="登录 · 多用户人设" width="100%"><br/>
+      <sub>登录 · 多用户人设(高血压 / 素食…各带独立画像与数据)</sub>
+    </td>
+    <td width="50%" align="center">
+      <img src="docs/images/app-insight.png" alt="健康数据洞察 · ECharts 自动出图" width="100%"><br/>
+      <sub>健康数据洞察 · NL2SQL → 四段式解读 + ECharts 自动出图</sub>
+    </td>
+  </tr>
+</table>
+
+> 前端为 Vue 3 + Naive UI 演示层(AI 辅助开发),用于直观呈现后端多 Agent 能力;项目重心与工程实绩在后端。
+
+---
+
 ## 项目背景 | Background
 
 优质营养师咨询费用高昂、预约周期长；通用建议无法匹配个人 **BMI / 慢病史 / 过敏源 / 饮食偏好** 差异；营养摄入与体征数据分散，难以形成长期洞察。

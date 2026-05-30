@@ -13,6 +13,8 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    // 开发期允许任意 Host 访问(docker 内截图 / 内网联调 / Cloudflare Tunnel 演示)
+    allowedHosts: true,
     proxy: {
       "/api": {
         target: "http://localhost:8000",
