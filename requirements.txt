@@ -15,6 +15,9 @@ openai==1.23.2
 
 # =========== RAG / Vector / Rerank ===========
 pymilvus==2.4.0
+# pymilvus→environs 依赖 marshmallow 的 __version_info__,marshmallow 4.0 已移除 →
+# 不约束会导致全新 pip install 时 environs 直接 AttributeError。锁 <4 兜底。
+marshmallow<4
 sentence-transformers==2.6.1
 FlagEmbedding==1.2.10
 rank-bm25==0.2.2
