@@ -5,7 +5,6 @@ import {
   useMessage,
   NButton,
   NInput,
-  NTag,
   NSpin,
   NAvatar,
   NPopconfirm,
@@ -17,6 +16,7 @@ import { useAuthStore } from "@/stores/auth";
 import { useConversationStore, type ChatMessage } from "@/stores/conversations";
 import EchartBlock from "@/components/EchartBlock.vue";
 import ShareDialog from "@/components/ShareDialog.vue";
+import CapIcon from "@/components/CapIcon.vue";
 
 // Markdown 渲染器:html:false 防 XSS,breaks:false 避免单换行变 <br> 撑大间距
 const md = new MarkdownIt({ html: false, linkify: true, breaks: false });
@@ -85,28 +85,24 @@ const messages = computed<ChatMessage[]>(() => {
 const capabilities = [
   {
     key: "consult",
-    icon: "💬",
     name: "营养咨询",
     desc: "低 GI 主食、三餐搭配、营养知识",
     prompt: "低 GI 的主食有哪些推荐?",
   },
   {
     key: "screening",
-    icon: "📋",
     name: "风险筛查",
     desc: "NRS-2002 营养风险评估",
     prompt: "帮我做一次 NRS2002 营养风险筛查",
   },
   {
     key: "plan",
-    icon: "🍱",
     name: "膳食方案",
     desc: "7 天个性化食谱",
     prompt: "帮我生成一份七天减脂食谱",
   },
   {
     key: "insight",
-    icon: "📊",
     name: "数据洞察",
     desc: "近 30 天体重 / 营养趋势",
     prompt: "分析我近30天的蛋白质达标情况",
@@ -405,7 +401,11 @@ function onLogout() {
           <div class="name">NutriCore</div>
           <div class="sub">AI 营养师</div>
         </div>
-        <button class="side-collapse" title="收起侧栏" @click="toggleSidebar">«</button>
+        <button class="side-collapse" title="收起侧栏" @click="toggleSidebar">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="m11 17-5-5 5-5M18 17l-5-5 5-5" />
+          </svg>
+        </button>
       </div>
 
       <n-button class="new-chat" type="primary" block @click="onNewChat">
@@ -434,16 +434,30 @@ function onLogout() {
           />
           <span v-else class="conv-title" @dblclick.stop="startRename(c)">{{ c.title || "新对话" }}</span>
           <span v-if="editingId !== c.id" class="conv-actions" @click.stop>
-            <span class="conv-act" title="重命名" @click="startRename(c)">✎</span>
+            <span class="conv-act" title="重命名" @click="startRename(c)">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M12 20h9" />
+                <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+              </svg>
+            </span>
             <span
               class="conv-act conv-pin"
               :class="{ on: c.pinned }"
               :title="c.pinned ? '取消置顶' : '置顶'"
               @click="convStore.togglePin(c.id)"
-            >📌</span>
+            >
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M12 17v5" />
+                <path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1Z" />
+              </svg>
+            </span>
             <n-popconfirm @positive-click="onDeleteConv(c.id)">
               <template #trigger>
-                <span class="conv-del">✕</span>
+                <span class="conv-del">
+                  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M18 6 6 18M6 6l12 12" />
+                  </svg>
+                </span>
               </template>
               删除这条对话?
             </n-popconfirm>
@@ -488,7 +502,9 @@ function onLogout() {
         title="展开侧栏"
         @click="toggleSidebar"
       >
-        »
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="m13 17 5-5-5-5M6 17l5-5-5-5" />
+        </svg>
       </button>
       <main ref="listRef" class="messages">
         <!-- 欢迎 -->
@@ -503,7 +519,7 @@ function onLogout() {
               class="cap-card"
               @click="send(c.prompt)"
             >
-              <div class="cap-icon">{{ c.icon }}</div>
+              <div class="cap-icon"><cap-icon :name="c.key" :size="21" /></div>
               <div class="cap-name">{{ c.name }}</div>
               <div class="cap-desc">{{ c.desc }}</div>
               <div class="cap-try">{{ c.prompt }}</div>
@@ -567,7 +583,13 @@ function onLogout() {
               <echart-block :option="activeChart(m)" />
             </div>
             <div v-if="m.citations && m.citations.length" class="cites">
-              <span class="cites-label">📚 依据来源</span>
+              <span class="cites-label">
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                  <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+                </svg>
+                依据来源
+              </span>
               <span v-for="c in prettyCitations(m.citations)" :key="c" class="cite">{{ c }}</span>
             </div>
             <!-- 无知识库引用、非图表洞察、非筛查流程的回答 = 通用 LLM 生成,加免责声明 -->
@@ -578,7 +600,12 @@ function onLogout() {
               "
               class="disclaimer"
             >
-              <span class="disclaimer-icon">💡</span>
+              <span class="disclaimer-icon">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M12 16v-4M12 8h.01" />
+                </svg>
+              </span>
               <span class="disclaimer-text">
                 <b>AI 生成内容</b>,基于通用营养学知识、未匹配知识库依据,仅供参考。涉及健康决策请咨询专业营养师或医生。
               </span>
@@ -588,7 +615,12 @@ function onLogout() {
               v-if="m.role === 'assistant' && m.quickReplies && m.quickReplies.length && i === messages.length - 1"
               class="quick-replies"
             >
-              <span v-if="m.intent === 'insight'" class="qr-hint">💡 换个角度看,点一下试试:</span>
+              <span v-if="m.intent === 'insight'" class="qr-hint">
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M9 18h6M10 22h4M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5.76.76 1.23 1.52 1.41 2.5" />
+                </svg>
+                换个角度看,点一下试试:
+              </span>
               <button
                 v-for="q in m.quickReplies"
                 :key="q"
@@ -675,7 +707,7 @@ function onLogout() {
             class="cap-pill"
             @click="fillPrompt(c.prompt)"
           >
-            {{ c.icon }} {{ c.name }}
+            <cap-icon :name="c.key" :size="14" /><span>{{ c.name }}</span>
           </span>
         </div>
         <footer class="composer">
@@ -767,12 +799,13 @@ function onLogout() {
   width: 26px;
   height: 26px;
   border-radius: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.18);
   color: #cfe6e4;
   cursor: pointer;
-  font-size: 14px;
-  line-height: 1;
   transition: background 0.15s;
 }
 .side-collapse:hover {
@@ -786,11 +819,13 @@ function onLogout() {
   width: 32px;
   height: 32px;
   border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: #16413f;
   color: #e6f4f3;
   border: 1px solid rgba(255, 255, 255, 0.16);
   cursor: pointer;
-  font-size: 15px;
   box-shadow: 0 4px 14px rgba(8, 30, 29, 0.25);
 }
 .side-expand:hover {
@@ -876,25 +911,24 @@ function onLogout() {
   flex-shrink: 0;
 }
 .conv-act {
+  display: inline-flex;
+  align-items: center;
   opacity: 0;
-  font-size: 11px;
-  padding: 0 3px;
+  padding: 2px 3px;
   cursor: pointer;
   color: #cfe6e4;
-  transition: opacity 0.15s;
+  transition: opacity 0.15s, color 0.15s;
 }
 .conv-item:hover .conv-act {
-  opacity: 0.5;
+  opacity: 0.55;
 }
 .conv-act:hover {
   opacity: 1 !important;
 }
-.conv-pin {
-  filter: grayscale(1);
-}
+/* 置顶态:常驻显示 + 品牌薄荷绿高亮(SVG 走 currentColor) */
 .conv-pin.on {
   opacity: 1;
-  filter: none;
+  color: #6fe3c8;
 }
 .conv-rename {
   flex: 1;
@@ -908,11 +942,20 @@ function onLogout() {
   outline: none;
 }
 .conv-del {
+  display: inline-flex;
+  align-items: center;
   opacity: 0;
-  font-size: 12px;
-  padding: 0 4px;
+  padding: 2px 3px;
   color: #cfe6e4;
   cursor: pointer;
+  transition: opacity 0.15s, color 0.15s;
+}
+.conv-item:hover .conv-del {
+  opacity: 0.55;
+}
+.conv-del:hover {
+  opacity: 1 !important;
+  color: #ff9b9b;
 }
 .conv-item:hover .conv-del {
   opacity: 0.6;
@@ -1020,13 +1063,13 @@ function onLogout() {
   transform: translateY(-3px);
 }
 .cap-icon {
-  font-size: 21px;
   line-height: 1;
   width: 40px;
   height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
+  color: #2f8b89; /* SVG 用 currentColor → 品牌绿 */
   background: linear-gradient(145deg, #eaf6f4, #f3faf9);
   border: 1px solid #e2efed;
   border-radius: 12px;
@@ -1326,6 +1369,9 @@ function onLogout() {
   gap: 6px;
 }
 .cites-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-size: 12px;
   color: #9ca3af;
 }
@@ -1352,8 +1398,9 @@ function onLogout() {
 }
 .disclaimer-icon {
   flex-shrink: 0;
-  font-size: 13px;
-  line-height: 1.5;
+  display: inline-flex;
+  align-items: center;
+  margin-top: 1px;
 }
 .disclaimer-text b {
   color: #7a5600;
@@ -1370,6 +1417,9 @@ function onLogout() {
 }
 .qr-hint {
   width: 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-size: 12px;
   color: #9ca3af;
   margin-bottom: 2px;
@@ -1494,6 +1544,9 @@ function onLogout() {
   gap: 8px;
 }
 .cap-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-size: 12.5px;
   color: #2f8b89;
   background: rgba(255, 255, 255, 0.92);
@@ -1504,6 +1557,9 @@ function onLogout() {
   transition: all 0.12s;
   user-select: none;
   box-shadow: 0 2px 8px rgba(16, 40, 39, 0.06);
+}
+.cap-pill svg {
+  flex-shrink: 0;
 }
 .cap-pill:hover {
   background: #2f8b89;

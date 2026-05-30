@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from "vue";
 import { useRoute } from "vue-router";
-import { NSpin, NTag, NButton } from "naive-ui";
+import { NSpin, NTag } from "naive-ui";
 import axios from "axios";
 import MarkdownIt from "markdown-it";
 import EchartBlock from "@/components/EchartBlock.vue";
@@ -92,7 +92,12 @@ onMounted(async () => {
       <n-spin v-if="loading" />
 
       <div v-else-if="errorMsg" class="error">
-        <div class="error-icon">🔗</div>
+        <div class="error-icon">
+          <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+          </svg>
+        </div>
         <div class="error-msg">{{ errorMsg }}</div>
         <a class="visit-btn" href="/login">进入 NutriCore 重新提问 →</a>
       </div>
@@ -110,7 +115,13 @@ onMounted(async () => {
             </n-tag>
             <span class="meta-time">· {{ createdAt }}</span>
             <span class="meta-spacer" />
-            <span class="views">👁 {{ snap.view_count }} 次访问</span>
+            <span class="views">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
+              {{ snap.view_count }} 次访问
+            </span>
           </div>
           <div class="markdown" v-html="md.render(snap.answer || '')" />
 
@@ -131,7 +142,13 @@ onMounted(async () => {
           </div>
 
           <div v-if="snap.citations && snap.citations.length" class="cites">
-            <span class="cites-label">📚 依据来源</span>
+            <span class="cites-label">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+              </svg>
+              依据来源
+            </span>
             <span v-for="c in prettyCitations(snap.citations)" :key="c" class="cite">{{ c }}</span>
           </div>
         </div>
@@ -204,8 +221,8 @@ onMounted(async () => {
   color: #5b736f;
 }
 .error-icon {
-  font-size: 42px;
-  opacity: 0.6;
+  color: #9bb3af;
+  opacity: 0.7;
 }
 .error .visit-btn {
   color: #2f8b89;
@@ -265,6 +282,9 @@ onMounted(async () => {
   flex: 1 1 auto;
 }
 .views {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-size: 12px;
   color: #8a9b98;
 }
@@ -328,6 +348,9 @@ onMounted(async () => {
   font-size: 12.5px;
 }
 .cites-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   color: #9ca3af;
 }
 .cite {
