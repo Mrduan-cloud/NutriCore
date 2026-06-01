@@ -17,11 +17,13 @@ import { useConversationStore, type ChatMessage } from "@/stores/conversations";
 import EchartBlock from "@/components/EchartBlock.vue";
 import ShareDialog from "@/components/ShareDialog.vue";
 import CapIcon from "@/components/CapIcon.vue";
+import { annotateGlossary } from "@/utils/glossary";
 
 // Markdown 渲染器:html:false 防 XSS,breaks:false 避免单换行变 <br> 撑大间距
 const md = new MarkdownIt({ html: false, linkify: true, breaks: false });
 function renderMarkdown(text: string): string {
-  return md.render(text || "");
+  // 渲染后给 GI / BMI / NRS-2002 等术语挂上可 hover 的释义
+  return annotateGlossary(md.render(text || ""));
 }
 
 // 引用来源 → 友好中文名 + 去重
@@ -1437,6 +1439,58 @@ function onLogout() {
 }
 .markdown :deep(*:last-child) {
   margin-bottom: 0;
+}
+/* 术语释义:虚线下划线 + hover 暗色小贴士(GI / BMI / NRS-2002 …) */
+.markdown :deep(.gloss) {
+  position: relative;
+  border-bottom: 1px dashed #59a39c;
+  cursor: help;
+  outline: none;
+}
+.markdown :deep(.gloss)::after {
+  content: attr(data-tip);
+  position: absolute;
+  left: 0;
+  top: calc(100% + 9px);
+  width: max-content;
+  max-width: 280px;
+  background: #14403f;
+  color: #eaf6f4;
+  font-size: 12.5px;
+  font-weight: 400;
+  font-style: normal;
+  line-height: 1.62;
+  text-align: left;
+  padding: 9px 12px;
+  border-radius: 10px;
+  box-shadow: 0 10px 26px rgba(8, 30, 29, 0.3);
+  white-space: normal;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  pointer-events: none;
+  z-index: 30;
+}
+.markdown :deep(.gloss)::before {
+  content: "";
+  position: absolute;
+  left: 11px;
+  top: calc(100% + 3px);
+  border: 6px solid transparent;
+  border-bottom-color: #14403f;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  z-index: 31;
+  pointer-events: none;
+}
+.markdown :deep(.gloss):hover::after,
+.markdown :deep(.gloss):focus::after {
+  opacity: 1;
+  transform: translateY(0);
+}
+.markdown :deep(.gloss):hover::before,
+.markdown :deep(.gloss):focus::before {
+  opacity: 1;
 }
 
 .bubble .cites {

@@ -5,8 +5,12 @@ import { NSpin, NTag } from "naive-ui";
 import axios from "axios";
 import MarkdownIt from "markdown-it";
 import EchartBlock from "@/components/EchartBlock.vue";
+import { annotateGlossary } from "@/utils/glossary";
 
 const md = new MarkdownIt({ html: false, linkify: true, breaks: false });
+function renderAnswer(text: string): string {
+  return annotateGlossary(md.render(text || ""));
+}
 
 interface Snapshot {
   token: string;
@@ -123,7 +127,7 @@ onMounted(async () => {
               {{ snap.view_count }} 次访问
             </span>
           </div>
-          <div class="markdown" v-html="md.render(snap.answer || '')" />
+          <div class="markdown" v-html="renderAnswer(snap.answer || '')" />
 
           <div v-if="snap.charts && snap.charts.length" class="chart-block">
             <div v-if="snap.charts.length > 1" class="chart-tabs">
@@ -311,6 +315,40 @@ onMounted(async () => {
 }
 .markdown :deep(strong) {
   color: #14403f;
+}
+/* 术语释义 hover 小贴士(与对话页一致) */
+.markdown :deep(.gloss) {
+  position: relative;
+  border-bottom: 1px dashed #59a39c;
+  cursor: help;
+  outline: none;
+}
+.markdown :deep(.gloss)::after {
+  content: attr(data-tip);
+  position: absolute;
+  left: 0;
+  top: calc(100% + 9px);
+  width: max-content;
+  max-width: 280px;
+  background: #14403f;
+  color: #eaf6f4;
+  font-size: 12.5px;
+  line-height: 1.62;
+  text-align: left;
+  padding: 9px 12px;
+  border-radius: 10px;
+  box-shadow: 0 10px 26px rgba(8, 30, 29, 0.3);
+  white-space: normal;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  pointer-events: none;
+  z-index: 30;
+}
+.markdown :deep(.gloss):hover::after,
+.markdown :deep(.gloss):focus::after {
+  opacity: 1;
+  transform: translateY(0);
 }
 .chart-block {
   margin-top: 12px;
