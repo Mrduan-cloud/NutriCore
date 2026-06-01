@@ -1,7 +1,7 @@
 """基于 ReportLab 渲染 NRS2002 PDF 风险报告，归档 MinIO。"""
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from io import BytesIO
 
 from reportlab.lib import colors
@@ -111,7 +111,7 @@ def render_pdf(report: NRSReport) -> bytes:
 
 async def archive_report(report: NRSReport) -> str:
     pdf_bytes = render_pdf(report)
-    ts = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+    ts = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     object_key = f"reports/risk/{report.user_id}/{ts}.pdf"
     await upload_object(object_key, pdf_bytes, content_type="application/pdf")
     return object_key

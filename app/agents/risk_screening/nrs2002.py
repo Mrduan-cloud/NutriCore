@@ -4,7 +4,7 @@
 """
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 from app.agents.risk_screening.schemas import NRSAnswer, NRSReport
 
@@ -110,5 +110,5 @@ def compute_nrs2002(user_id: str, answer: NRSAnswer) -> NRSReport:
         total_score=total,
         risk_level=level,
         recommendation=recommendation,
-        answered_at=datetime.utcnow().isoformat(),
+        answered_at=datetime.now(UTC).replace(tzinfo=None).isoformat(),
     )
