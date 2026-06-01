@@ -104,3 +104,33 @@ def test_build_charts_offers_alternatives():
     charts = build_charts(rows, "近30天蛋白质趋势")
     assert charts[0]["type"] == "line"
     assert {c["type"] for c in charts} >= {"line", "bar"}
+
+
+# ---- 「达标」时序图必须画出推荐参考线(否则用户看不懂达标没达标) ----
+
+def test_nutrient_timeseries_has_target_markline():
+    """蛋白质达标折线:应有推荐 60g 的 markLine,且摄入型指标加「达标区」绿带。"""
+    rows = [{"date": "2026-05-01", "protein": 80}, {"date": "2026-05-02", "protein": 82}]
+    chart = rows_to_chart(rows, "近30天蛋白质达标情况")
+    series = chart["series"][0]
+    assert "markLine" in series, "达标图必须有推荐参考线"
+    assert series["markLine"]["data"][0]["yAxis"] == 60  # protein 推荐 60g
+    assert "≥" in series["markLine"]["label"]["formatter"]  # 越多越好 → 用「推荐 ≥」
+    assert "markArea" in series, "摄入越多越好的指标应有达标区绿带"
+
+
+def test_range_nutrient_has_line_but_no_goal_band():
+    """脂肪是范围型(过多也不好):给参考线,但不染「达标区」绿带。"""
+    rows = [{"date": "2026-05-01", "fat": 50}, {"date": "2026-05-02", "fat": 55}]
+    chart = rows_to_chart(rows, "近一周脂肪趋势")
+    series = chart["series"][0]
+    assert "markLine" in series
+    assert "markArea" not in series  # 范围型不染达标区
+    assert "≥" not in series["markLine"]["label"]["formatter"]  # 用「推荐 」不带 ≥
+
+
+def test_unknown_metric_no_markline():
+    """非已知营养指标(无推荐基线)→ 不强加参考线。"""
+    rows = [{"date": "2026-05-01", "mystery": 5}, {"date": "2026-05-02", "mystery": 7}]
+    chart = rows_to_chart(rows, "近一周趋势")
+    assert "markLine" not in chart["series"][0]

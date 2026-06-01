@@ -143,6 +143,45 @@ class Vitals(models.Model):
         table = "vitals"
 
 
+class SharedSnapshot(models.Model):
+    """对话片段公开分享 —— 用户点「分享」时生成一份可被任意访客只读访问的快照。
+
+    设计要点:
+    - 只存这一问一答(question + answer),不带用户画像/历史/user_id → 公开页绝不外泄健康档案
+    - token 用不可猜的 url-safe 串(16 字节熵 ≈ 22 字符),避免被遍历
+    - view_count 计数,公开页每访问一次 +1,方便后续看哪些回答最被转发
+    """
+
+    token = fields.CharField(pk=True, max_length=32)
+    # 仅用于内部审计 / 后续支持"我分享过什么"列表;公开接口不返回此字段
+    created_by = fields.CharField(max_length=64, index=True)
+    question = fields.TextField()
+    answer = fields.TextField()
+    intent = fields.CharField(max_length=32, null=True)
+    citations = fields.JSONField(default=list)
+    # 数据洞察等带 ECharts 时一并存,公开页就能复现同样的图
+    charts = fields.JSONField(null=True)
+    chart_type = fields.CharField(max_length=16, null=True)
+    view_count = fields.IntField(default=0)
+    created_at = fields.DatetimeField(auto_now_add=True)
+
+    class Meta:
+        table = "shared_snapshot"
+
+    def to_public(self) -> dict:
+        return {
+            "token": self.token,
+            "question": self.question,
+            "answer": self.answer,
+            "intent": self.intent,
+            "citations": self.citations or [],
+            "charts": self.charts,
+            "chart_type": self.chart_type,
+            "view_count": self.view_count,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
 class AuditLog(models.Model):
     id = fields.IntField(pk=True)
     request_id = fields.CharField(max_length=64, index=True)

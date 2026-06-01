@@ -7,7 +7,7 @@ def test_low_risk():
     ans = NRSAnswer(age=30, bmi=22, weight_loss_pct_3m=0, food_intake_drop_pct=0)
     r = compute_nrs2002("u1", ans)
     assert r.total_score == 0
-    assert r.risk_level == "无风险"
+    assert r.risk_level == "暂无营养风险"
 
 
 def test_high_risk_elderly():
@@ -17,7 +17,23 @@ def test_high_risk_elderly():
     )
     r = compute_nrs2002("u2", ans)
     assert r.total_score >= 3
-    assert r.risk_level == "建议营养支持"
+    assert r.risk_level == "有营养风险"
+
+
+def test_score_1_2_is_not_at_risk_strict_nrs2002():
+    """关键回归:NRS-2002 是严格二分,1-2 分应为「暂无营养风险」,**不是**「存在风险」。
+
+    历史 bug:之前在 total >= 1 就标"存在风险",这是临床筛查工具的常见误读
+    (1-2 分意味"暂时无须干预,密切复评",而非"轻度风险")。
+    """
+    # 进食 50-75% 给 nutrition=1,其它 0;total = 1
+    ans = NRSAnswer(age=30, bmi=22, weight_loss_pct_3m=0, food_intake_drop_pct=38)
+    r = compute_nrs2002("u1", ans)
+    assert r.total_score == 1
+    assert r.risk_level == "暂无营养风险"
+    # 也不该出现"存在风险"/"轻度风险"这类被误读的字眼
+    assert "存在风险" not in r.risk_level
+    assert "轻度" not in r.risk_level
 
 
 def test_small_weight_loss_is_zero():

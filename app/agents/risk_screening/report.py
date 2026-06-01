@@ -83,7 +83,14 @@ def render_pdf(report: NRSReport) -> bytes:
     story.append(Spacer(1, 16))
 
     story.append(Paragraph("二、风险等级与建议", h2))
-    risk_color = {"无风险": "#10b981", "存在风险": "#f59e0b", "建议营养支持": "#ef4444"}.get(report.risk_level, "#475569")
+    # 颜色按 total_score 分三档,但等级字符串仍是 NRS-2002 二分(临床准确);
+    # 1-2 分用 amber 是为了 PDF 可读性,不代表 NRS-2002 有"中间档"。
+    if report.total_score >= 3:
+        risk_color = "#ef4444"  # 有营养风险
+    elif report.total_score >= 1:
+        risk_color = "#f59e0b"  # 暂无营养风险(但有扣分)
+    else:
+        risk_color = "#10b981"  # 全 0 分
     story.append(Paragraph(
         f'<font color="{risk_color}"><b>风险等级：{report.risk_level}</b></font>', body
     ))

@@ -5,21 +5,25 @@ import {
   useMessage,
   NButton,
   NInput,
-  NTag,
   NSpin,
   NAvatar,
   NPopconfirm,
   NModal,
 } from "naive-ui";
 import MarkdownIt from "markdown-it";
+import client from "@/api/client";
 import { useAuthStore } from "@/stores/auth";
 import { useConversationStore, type ChatMessage } from "@/stores/conversations";
 import EchartBlock from "@/components/EchartBlock.vue";
+import ShareDialog from "@/components/ShareDialog.vue";
+import CapIcon from "@/components/CapIcon.vue";
+import { annotateGlossary } from "@/utils/glossary";
 
 // Markdown 渲染器:html:false 防 XSS,breaks:false 避免单换行变 <br> 撑大间距
 const md = new MarkdownIt({ html: false, linkify: true, breaks: false });
 function renderMarkdown(text: string): string {
-  return md.render(text || "");
+  // 渲染后给 GI / BMI / NRS-2002 等术语挂上可 hover 的释义
+  return annotateGlossary(md.render(text || ""));
 }
 
 // 引用来源 → 友好中文名 + 去重
@@ -83,28 +87,24 @@ const messages = computed<ChatMessage[]>(() => {
 const capabilities = [
   {
     key: "consult",
-    icon: "💬",
     name: "营养咨询",
     desc: "低 GI 主食、三餐搭配、营养知识",
     prompt: "低 GI 的主食有哪些推荐?",
   },
   {
     key: "screening",
-    icon: "📋",
     name: "风险筛查",
     desc: "NRS-2002 营养风险评估",
     prompt: "帮我做一次 NRS2002 营养风险筛查",
   },
   {
     key: "plan",
-    icon: "🍱",
     name: "膳食方案",
     desc: "7 天个性化食谱",
     prompt: "帮我生成一份七天减脂食谱",
   },
   {
     key: "insight",
-    icon: "📊",
     name: "数据洞察",
     desc: "近 30 天体重 / 营养趋势",
     prompt: "分析我近30天的蛋白质达标情况",
@@ -124,9 +124,8 @@ function activeChart(m: ChatMessage): Record<string, any> | null {
   return m.chart || null;
 }
 
-// 复制消息内容到剪贴板(secure context 用 Clipboard API,否则回退 execCommand)
-async function copyMessage(m: ChatMessage) {
-  const text = m.content || "";
+// 复制工具:secure context 用 Clipboard API,否则回退 execCommand
+async function copyText(text: string): Promise<boolean> {
   try {
     if (navigator.clipboard && window.isSecureContext) {
       await navigator.clipboard.writeText(text);
@@ -140,9 +139,99 @@ async function copyMessage(m: ChatMessage) {
       document.execCommand("copy");
       document.body.removeChild(ta);
     }
-    message.success("已复制");
+    return true;
   } catch {
-    message.warning("复制失败,请手动选择");
+    return false;
+  }
+}
+
+async function copyMessage(m: ChatMessage) {
+  const ok = await copyText(m.content || "");
+  if (ok) message.success("已复制");
+  else message.warning("复制失败,请手动选择");
+}
+
+// 找到这条 assistant 回复对应的、紧邻其前的用户提问
+function priorUserMessage(m: ChatMessage): ChatMessage | null {
+  const conv = convStore.list.find((c) => c.id === convStore.activeId);
+  if (!conv) return null;
+  const idx = conv.messages.indexOf(m);
+  for (let i = idx - 1; i >= 0; i--) {
+    if (conv.messages[i].role === "user") return conv.messages[i];
+  }
+  return null;
+}
+
+// 分享:走后端 POST /api/chat/share → 拿到不可猜 token → 打开渠道选择弹窗。
+// 公开页 /s/{token} 可被任何人(无需登录)看到这一问一答。
+const shareOpen = ref(false);
+const shareLoading = ref(false);
+const shareUrl = ref("");
+const shareTitle = ref("");
+
+async function shareMessage(m: ChatMessage) {
+  const u = priorUserMessage(m);
+  // 快照标题取问题前 60 字,方便社交平台默认文案
+  shareTitle.value = (u?.content || m.content || "NutriCore AI 营养师").slice(0, 60);
+  shareUrl.value = "";
+  shareLoading.value = true;
+  shareOpen.value = true;
+  try {
+    const { data } = await client.post("/api/chat/share", {
+      question: u?.content || "",
+      answer: m.content || "",
+      intent: m.intent || null,
+      citations: m.citations || [],
+      charts: m.charts && m.charts.length ? m.charts : null,
+      chart_type: m.chartType || null,
+    });
+    // 组装公开 URL(用 window.origin 适配本地/将来部署的不同域名)
+    shareUrl.value = `${window.location.origin}${data.path}`;
+  } catch (e: any) {
+    shareOpen.value = false;
+    message.error(e?.response?.data?.detail || "生成分享链接失败,请重试");
+  } finally {
+    shareLoading.value = false;
+  }
+}
+
+// 重新生成:只允许在最后一条 assistant 上,否则会破坏后续上下文。
+// 实现:回退到对应的用户提问 → 删掉「问+原答」→ 调 send() 重新走一遍流。
+async function regenerate(m: ChatMessage) {
+  if (loading.value) return;
+  const conv = convStore.active();
+  const idx = conv.messages.indexOf(m);
+  if (idx < 1) return;
+  let userIdx = idx - 1;
+  while (userIdx >= 0 && conv.messages[userIdx].role !== "user") userIdx--;
+  if (userIdx < 0) return;
+  const userText = conv.messages[userIdx].content;
+  conv.messages.splice(userIdx);
+  await send(userText);
+}
+
+function rate(m: ChatMessage, value: "up" | "down") {
+  // 反复点同一档 = 取消;切换档位则覆盖
+  m.rating = m.rating === value ? undefined : value;
+  convStore.save();
+  if (m.rating === "up") message.success("感谢反馈 👍");
+  else if (m.rating === "down") message.info("已记录,我们会改进 🙏");
+
+  // 落审计日志(fire-and-forget):上报失败也不影响本地 rating
+  if (m.rating) {
+    const conv = convStore.active();
+    const u = priorUserMessage(m);
+    client
+      .post("/api/chat/feedback", {
+        rating: m.rating,
+        session_id: conv.id,
+        intent: m.intent || null,
+        question: u?.content?.slice(0, 500) || null,
+        answer_excerpt: (m.content || "").slice(0, 500),
+      })
+      .catch(() => {
+        /* 静默:本地评分已保存,审计上报失败不打扰用户 */
+      });
   }
 }
 
@@ -314,7 +403,11 @@ function onLogout() {
           <div class="name">NutriCore</div>
           <div class="sub">AI 营养师</div>
         </div>
-        <button class="side-collapse" title="收起侧栏" @click="toggleSidebar">«</button>
+        <button class="side-collapse" title="收起侧栏" @click="toggleSidebar">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="m11 17-5-5 5-5M18 17l-5-5 5-5" />
+          </svg>
+        </button>
       </div>
 
       <n-button class="new-chat" type="primary" block @click="onNewChat">
@@ -343,16 +436,30 @@ function onLogout() {
           />
           <span v-else class="conv-title" @dblclick.stop="startRename(c)">{{ c.title || "新对话" }}</span>
           <span v-if="editingId !== c.id" class="conv-actions" @click.stop>
-            <span class="conv-act" title="重命名" @click="startRename(c)">✎</span>
+            <span class="conv-act" title="重命名" @click="startRename(c)">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M12 20h9" />
+                <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+              </svg>
+            </span>
             <span
               class="conv-act conv-pin"
               :class="{ on: c.pinned }"
               :title="c.pinned ? '取消置顶' : '置顶'"
               @click="convStore.togglePin(c.id)"
-            >📌</span>
+            >
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M12 17v5" />
+                <path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1Z" />
+              </svg>
+            </span>
             <n-popconfirm @positive-click="onDeleteConv(c.id)">
               <template #trigger>
-                <span class="conv-del">✕</span>
+                <span class="conv-del">
+                  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M18 6 6 18M6 6l12 12" />
+                  </svg>
+                </span>
               </template>
               删除这条对话?
             </n-popconfirm>
@@ -397,7 +504,9 @@ function onLogout() {
         title="展开侧栏"
         @click="toggleSidebar"
       >
-        »
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="m13 17 5-5-5-5M6 17l5-5-5-5" />
+        </svg>
       </button>
       <main ref="listRef" class="messages">
         <!-- 欢迎 -->
@@ -410,9 +519,10 @@ function onLogout() {
               v-for="c in capabilities"
               :key="c.key"
               class="cap-card"
+              :class="`theme-${c.key}`"
               @click="send(c.prompt)"
             >
-              <div class="cap-icon">{{ c.icon }}</div>
+              <div class="cap-icon"><cap-icon :name="c.key" :size="22" /></div>
               <div class="cap-name">{{ c.name }}</div>
               <div class="cap-desc">{{ c.desc }}</div>
               <div class="cap-try">{{ c.prompt }}</div>
@@ -426,22 +536,28 @@ function onLogout() {
             🥗
           </n-avatar>
           <div class="bubble" :class="m.role">
+            <!-- 用户气泡:复制按钮 hover 浮现在绿色气泡右上角(归属清晰) -->
             <button
-              v-if="m.content"
-              class="copy-btn"
-              :class="m.role"
+              v-if="m.role === 'user' && m.content"
+              class="copy-btn user"
               title="复制"
               @click="copyMessage(m)"
             >
               ⧉
             </button>
-            <div v-if="m.role === 'assistant' && m.intent" class="meta">
-              <n-tag size="small" :type="m.isHighRisk ? 'warning' : 'success'" :bordered="false">
-                {{ intentLabel[m.intent] || m.intent }}
-              </n-tag>
-              <n-tag v-for="t in m.usedTools" :key="t" size="small" type="info" :bordered="false">
-                🔧 {{ t }}
-              </n-tag>
+            <!-- 「营养师思路」过程轨迹 —— LangGraph 多 agent 调度链可视化(Hanako-inspired):
+                 intent_router → 子 agent → 工具调用,以灰斜体一行呈现,让多智能体协作"看得见"。 -->
+            <div v-if="m.role === 'assistant' && m.intent" class="process-trace">
+              <span class="pt-arrow">›</span>
+              <span
+                class="pt-step"
+                :class="{ 'pt-risk': m.isHighRisk }"
+              >intent_router → <b>{{ intentLabel[m.intent] || m.intent }}</b></span>
+              <template v-for="t in m.usedTools" :key="t">
+                <span class="pt-sep">·</span>
+                <span class="pt-step">{{ t }}</span>
+              </template>
+              <span v-if="m.isHighRisk" class="pt-tag pt-tag-risk">高风险</span>
             </div>
             <template v-if="m.role === 'assistant'">
               <div v-if="!m.content" class="thinking">
@@ -470,7 +586,13 @@ function onLogout() {
               <echart-block :option="activeChart(m)" />
             </div>
             <div v-if="m.citations && m.citations.length" class="cites">
-              <span class="cites-label">📚 依据来源</span>
+              <span class="cites-label">
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                  <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+                </svg>
+                依据来源
+              </span>
               <span v-for="c in prettyCitations(m.citations)" :key="c" class="cite">{{ c }}</span>
             </div>
             <!-- 无知识库引用、非图表洞察、非筛查流程的回答 = 通用 LLM 生成,加免责声明 -->
@@ -481,7 +603,12 @@ function onLogout() {
               "
               class="disclaimer"
             >
-              <span class="disclaimer-icon">💡</span>
+              <span class="disclaimer-icon">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M12 16v-4M12 8h.01" />
+                </svg>
+              </span>
               <span class="disclaimer-text">
                 <b>AI 生成内容</b>,基于通用营养学知识、未匹配知识库依据,仅供参考。涉及健康决策请咨询专业营养师或医生。
               </span>
@@ -491,7 +618,12 @@ function onLogout() {
               v-if="m.role === 'assistant' && m.quickReplies && m.quickReplies.length && i === messages.length - 1"
               class="quick-replies"
             >
-              <span v-if="m.intent === 'insight'" class="qr-hint">💡 换个角度看,点一下试试:</span>
+              <span v-if="m.intent === 'insight'" class="qr-hint">
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M9 18h6M10 22h4M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5.76.76 1.23 1.52 1.41 2.5" />
+                </svg>
+                换个角度看,点一下试试:
+              </span>
               <button
                 v-for="q in m.quickReplies"
                 :key="q"
@@ -501,6 +633,67 @@ function onLogout() {
                 @click="send(q)"
               >
                 {{ q }}
+              </button>
+            </div>
+            <!-- AI 回复底部动作栏(Perplexity 风格):放在回复末尾,归属清晰、不与上方用户气泡混淆
+                 图标全部 monochrome stroke SVG(Feather 风格),与分享弹窗的品牌色 SVG 形成
+                 「主功能 monochrome / 渠道 brand-color」的视觉分层。 -->
+            <div
+              v-if="m.role === 'assistant' && m.content"
+              class="msg-actions"
+            >
+              <button class="msg-action" title="复制回复" @click="copyMessage(m)">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <rect x="9" y="9" width="11" height="11" rx="2"/>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                </svg>
+                <span class="msg-action-label">复制</span>
+              </button>
+              <button class="msg-action" title="生成可公开访问的分享链接" @click="shareMessage(m)">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <circle cx="18" cy="5" r="3"/>
+                  <circle cx="6" cy="12" r="3"/>
+                  <circle cx="18" cy="19" r="3"/>
+                  <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+                  <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+                </svg>
+                <span class="msg-action-label">分享</span>
+              </button>
+              <!-- 重新生成只在最后一条 assistant 上提供,避免破坏后续对话上下文 -->
+              <button
+                v-if="i === messages.length - 1"
+                class="msg-action"
+                :disabled="loading"
+                title="重新生成回复"
+                @click="regenerate(m)"
+              >
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <polyline points="23 4 23 10 17 10"/>
+                  <polyline points="1 20 1 14 7 14"/>
+                  <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+                </svg>
+                <span class="msg-action-label">重新生成</span>
+              </button>
+              <span class="msg-actions-spacer" />
+              <button
+                class="msg-action rate"
+                :class="{ active: m.rating === 'up' }"
+                title="有用"
+                @click="rate(m, 'up')"
+              >
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/>
+                </svg>
+              </button>
+              <button
+                class="msg-action rate"
+                :class="{ active: m.rating === 'down' }"
+                title="待改进"
+                @click="rate(m, 'down')"
+              >
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"/>
+                </svg>
               </button>
             </div>
           </div>
@@ -517,7 +710,7 @@ function onLogout() {
             class="cap-pill"
             @click="fillPrompt(c.prompt)"
           >
-            {{ c.icon }} {{ c.name }}
+            <cap-icon :name="c.key" :size="14" /><span>{{ c.name }}</span>
           </span>
         </div>
         <footer class="composer">
@@ -550,6 +743,14 @@ function onLogout() {
         </div>
       </div>
     </n-modal>
+
+    <!-- 分享对话框:链接 + 各社交渠道 intent URL -->
+    <share-dialog
+      v-model:show="shareOpen"
+      :url="shareUrl"
+      :title="shareTitle"
+      :loading="shareLoading"
+    />
   </div>
 </template>
 
@@ -601,12 +802,13 @@ function onLogout() {
   width: 26px;
   height: 26px;
   border-radius: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.18);
   color: #cfe6e4;
   cursor: pointer;
-  font-size: 14px;
-  line-height: 1;
   transition: background 0.15s;
 }
 .side-collapse:hover {
@@ -620,11 +822,13 @@ function onLogout() {
   width: 32px;
   height: 32px;
   border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: #16413f;
   color: #e6f4f3;
   border: 1px solid rgba(255, 255, 255, 0.16);
   cursor: pointer;
-  font-size: 15px;
   box-shadow: 0 4px 14px rgba(8, 30, 29, 0.25);
 }
 .side-expand:hover {
@@ -710,25 +914,24 @@ function onLogout() {
   flex-shrink: 0;
 }
 .conv-act {
+  display: inline-flex;
+  align-items: center;
   opacity: 0;
-  font-size: 11px;
-  padding: 0 3px;
+  padding: 2px 3px;
   cursor: pointer;
   color: #cfe6e4;
-  transition: opacity 0.15s;
+  transition: opacity 0.15s, color 0.15s;
 }
 .conv-item:hover .conv-act {
-  opacity: 0.5;
+  opacity: 0.55;
 }
 .conv-act:hover {
   opacity: 1 !important;
 }
-.conv-pin {
-  filter: grayscale(1);
-}
+/* 置顶态:常驻显示 + 品牌薄荷绿高亮(SVG 走 currentColor) */
 .conv-pin.on {
   opacity: 1;
-  filter: none;
+  color: #6fe3c8;
 }
 .conv-rename {
   flex: 1;
@@ -742,11 +945,20 @@ function onLogout() {
   outline: none;
 }
 .conv-del {
+  display: inline-flex;
+  align-items: center;
   opacity: 0;
-  font-size: 12px;
-  padding: 0 4px;
+  padding: 2px 3px;
   color: #cfe6e4;
   cursor: pointer;
+  transition: opacity 0.15s, color 0.15s;
+}
+.conv-item:hover .conv-del {
+  opacity: 0.55;
+}
+.conv-del:hover {
+  opacity: 1 !important;
+  color: #ff9b9b;
 }
 .conv-item:hover .conv-del {
   opacity: 0.6;
@@ -808,77 +1020,158 @@ function onLogout() {
   /* 底部留白:给悬浮输入区让位,最后一条消息能滚到其上方 */
   padding: 28px 24px 132px;
   width: 100%;
-  max-width: 1280px;
+  /* Claude / ChatGPT 式居中阅读列:固定舒适宽度,两侧对称留白;
+     侧栏收起也只是对称居中,不会偏移、不会单侧空一大块。 */
+  max-width: 1000px;
   margin: 0 auto;
 }
 .welcome {
+  position: relative;
   text-align: center;
-  margin-top: 3vh;
+  margin-top: 4vh;
   color: #374151;
 }
+/* 欢迎区柔光背景:几团品牌 / Agent 主题色的柔和光晕,告别纯白单调 */
+.welcome::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: -40px;
+  width: 760px;
+  height: 520px;
+  transform: translateX(-50%);
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(220px 200px at 22% 28%, rgba(20, 184, 166, 0.16), transparent 70%),
+    radial-gradient(220px 200px at 80% 22%, rgba(245, 158, 11, 0.14), transparent 70%),
+    radial-gradient(240px 220px at 30% 82%, rgba(34, 197, 94, 0.14), transparent 70%),
+    radial-gradient(240px 220px at 82% 80%, rgba(124, 108, 240, 0.14), transparent 70%);
+  filter: blur(8px);
+}
+.welcome > * {
+  position: relative;
+  z-index: 1;
+}
 .welcome-logo {
-  font-size: 44px;
+  font-size: 38px;
+  line-height: 1;
+  width: 76px;
+  height: 76px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 24px;
+  background: radial-gradient(circle at 50% 38%, #ffffff, #ecf7f4);
+  box-shadow: 0 10px 26px rgba(47, 139, 137, 0.18), 0 0 0 1px rgba(47, 139, 137, 0.08) inset;
 }
 .welcome h2 {
-  margin: 8px 0 4px;
-  font-size: 21px;
+  margin: 16px 0 4px;
+  font-size: 22px;
+  color: #14403f;
 }
 .welcome p {
   color: #6b7280;
-  margin-bottom: 18px;
+  margin-bottom: 22px;
   font-size: 13.5px;
 }
 /* 欢迎页:4 个子 Agent 能力卡片(点击直接发起代表性提问) */
 .cap-cards {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  max-width: 560px;
+  gap: 14px;
+  max-width: 600px;
   margin: 0 auto;
 }
 .cap-card {
+  position: relative;
+  overflow: hidden;
   text-align: left;
   background: #fff;
   border: 1px solid #e9efee;
-  border-radius: 16px;
-  padding: 16px;
+  border-radius: 18px;
+  padding: 18px;
   cursor: pointer;
   transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
   box-shadow: 0 1px 2px rgba(16, 40, 39, 0.04);
 }
+/* 卡片右上角的主题色柔光晕染(随主题变量上色) */
+.cap-card::after {
+  content: "";
+  position: absolute;
+  top: -40px;
+  right: -40px;
+  width: 130px;
+  height: 130px;
+  border-radius: 50%;
+  background: var(--accent-soft, rgba(47, 139, 137, 0.1));
+  opacity: 0.7;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+  pointer-events: none;
+}
 .cap-card:hover {
-  border-color: #bfe3dd;
-  box-shadow: 0 10px 28px rgba(47, 139, 137, 0.16);
+  border-color: var(--accent, #bfe3dd);
+  box-shadow: 0 14px 32px var(--accent-soft, rgba(47, 139, 137, 0.18));
   transform: translateY(-3px);
 }
+.cap-card:hover::after {
+  opacity: 1;
+  transform: scale(1.15);
+}
+/* 各 Agent 专属主题色 */
+.cap-card.theme-consult {
+  --accent: #14b8a6;
+  --accent-soft: rgba(20, 184, 166, 0.14);
+}
+.cap-card.theme-screening {
+  --accent: #f59e0b;
+  --accent-soft: rgba(245, 158, 11, 0.14);
+}
+.cap-card.theme-plan {
+  --accent: #22c55e;
+  --accent-soft: rgba(34, 197, 94, 0.14);
+}
+.cap-card.theme-insight {
+  --accent: #7c6cf0;
+  --accent-soft: rgba(124, 108, 240, 0.16);
+}
+/* 原来的线性图标徽章,但底色/图标色吸收所在卡片的主题色,与彩色背景呼应 */
 .cap-icon {
-  font-size: 21px;
-  line-height: 1;
-  width: 40px;
-  height: 40px;
+  position: relative;
+  z-index: 1;
+  width: 42px;
+  height: 42px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(145deg, #eaf6f4, #f3faf9);
-  border: 1px solid #e2efed;
+  color: var(--accent, #2f8b89);
+  background: var(--accent-soft, rgba(47, 139, 137, 0.1));
+  border: 1px solid var(--accent-soft, #e2efed);
   border-radius: 12px;
 }
 .cap-name {
-  margin-top: 10px;
+  position: relative;
+  z-index: 1;
+  margin-top: 13px;
   font-weight: 700;
   color: #14403f;
-  font-size: 14.5px;
+  font-size: 15px;
 }
 .cap-desc {
-  margin-top: 2px;
+  position: relative;
+  z-index: 1;
+  margin-top: 3px;
   font-size: 12px;
   color: #6b7280;
 }
 .cap-try {
-  margin-top: 8px;
+  position: relative;
+  z-index: 1;
+  margin-top: 10px;
   font-size: 12px;
-  color: #2f8b89;
-  background: #eef6f5;
+  color: var(--accent, #2f8b89);
+  background: var(--accent-soft, #eef6f5);
   border-radius: 8px;
   padding: 5px 9px;
 }
@@ -890,9 +1183,14 @@ function onLogout() {
 .row {
   display: flex;
   gap: 11px;
-  margin-bottom: 18px;
+  margin-bottom: 14px;
   align-items: flex-start;
   animation: bubble-in 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+/* 一个「turn」 = 用户问 + AI 答;turn 之间(=下一条 user)再加大间距,
+   视觉上明确分组,避免上一段答案的动作栏与下一段提问粘在一起。 */
+.row + .row.user {
+  margin-top: 28px;
 }
 @keyframes bubble-in {
   from {
@@ -914,12 +1212,19 @@ function onLogout() {
 .bubble {
   position: relative;
   max-width: 78%;
-  padding: 12px 16px;
+  padding: 14px 20px;
   border-radius: 16px;
-  line-height: 1.7;
-  font-size: 15px;
+  /* Perplexity 风格正文:更大字号 + 更舒展行高 */
+  line-height: 1.78;
+  font-size: 16px;
   white-space: pre-wrap;
   word-break: break-word;
+}
+/* AI 回复占满对话列宽度(填满布局,内容不再左缩一小块、右侧大留白);
+   用户气泡仍靠右、限宽 78%。 */
+.row:not(.user) .bubble {
+  flex: 1 1 auto;
+  max-width: 100%;
 }
 /* 复制按钮:hover 时出现在气泡右上角 */
 .copy-btn {
@@ -939,12 +1244,48 @@ function onLogout() {
 .bubble:hover .copy-btn {
   opacity: 1;
 }
-.copy-btn.assistant {
-  background: #eef2f2;
-  color: #5a6b69;
+/* AI 回复底部动作栏:Perplexity 风格 —— 放在回复末尾,归属清晰 */
+.msg-actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 14px;
+  padding-top: 6px;
 }
-.copy-btn.assistant:hover {
-  background: #dce6e4;
+.msg-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: transparent;
+  border: none;
+  color: #6b8b88;
+  font-size: 12.5px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.msg-action:hover {
+  background: rgba(20, 64, 63, 0.06);
+  color: #14403f;
+}
+.msg-action:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.msg-action-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+/* 把 👍 👎 推到右端,与复制/分享/重新生成形成「左主功能 / 右反馈」的视觉分组 */
+.msg-actions-spacer {
+  flex: 1 1 auto;
+}
+.msg-action.rate {
+  padding: 5px 8px;
+}
+.msg-action.rate.active {
+  background: rgba(47, 139, 137, 0.12);
+  color: #14403f;
 }
 .copy-btn.user {
   background: rgba(255, 255, 255, 0.22);
@@ -953,12 +1294,15 @@ function onLogout() {
 .copy-btn.user:hover {
   background: rgba(255, 255, 255, 0.38);
 }
+/* Perplexity 风格:AI 回复去掉白卡片,纯文本直接铺在页面背景上 */
 .bubble.assistant {
-  background: #fff;
-  color: #1f2937;
-  border-top-left-radius: 5px;
-  border: 1px solid #eef2f1;
-  box-shadow: 0 6px 20px rgba(16, 40, 39, 0.06);
+  background: transparent;
+  color: #1f333a;
+  letter-spacing: 0.1px;
+  padding: 2px 4px;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
 }
 .bubble.user {
   background: linear-gradient(135deg, #34948f 0%, #2a7d79 100%);
@@ -967,10 +1311,54 @@ function onLogout() {
   white-space: normal;
   box-shadow: 0 6px 18px rgba(42, 125, 121, 0.28);
 }
+/* 「营养师思路」过程轨迹 —— Hanako 式 `› ...` 灰斜体,把 LangGraph
+   多 agent 调度链以最低视觉权重呈现:用户读得到、又不抢答案焦点。 */
+.process-trace {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+  font-size: 12.5px;
+  color: #8a9b98;
+  font-style: italic;
+  font-family: ui-monospace, "SF Mono", "JetBrains Mono", Consolas, monospace;
+  line-height: 1.6;
+  letter-spacing: 0.1px;
+}
+.pt-arrow {
+  color: #b9c5c3;
+  font-style: normal;
+  font-weight: 700;
+}
+.pt-step b {
+  color: #2f8b89;
+  font-weight: 600;
+  font-style: normal;
+}
+.pt-step.pt-risk b {
+  color: #c1592a;
+}
+.pt-sep {
+  color: #c8d2d0;
+  font-style: normal;
+}
+.pt-tag {
+  font-style: normal;
+  font-size: 11px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-family: inherit;
+}
+.pt-tag-risk {
+  background: #fbeee5;
+  color: #c1592a;
+}
+
 .bubble .meta {
   display: flex;
   gap: 6px;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
   flex-wrap: wrap;
 }
 .thinking {
@@ -988,22 +1376,23 @@ function onLogout() {
 .markdown :deep(h2),
 .markdown :deep(h3),
 .markdown :deep(h4) {
-  font-size: 15px;
+  font-size: 16.5px;
   font-weight: 700;
-  margin: 10px 0 4px;
+  /* 每天之间留更大间距,分组更清晰(Perplexity 那种段落呼吸感) */
+  margin: 18px 0 8px;
   color: #14403f;
 }
 .markdown :deep(p) {
-  margin: 4px 0;
+  margin: 8px 0;
 }
 .markdown :deep(ul),
 .markdown :deep(ol) {
-  margin: 4px 0;
-  padding-left: 20px;
+  margin: 6px 0;
+  padding-left: 22px;
 }
 .markdown :deep(li) {
-  margin: 0;
-  line-height: 1.55;
+  margin: 5px 0;
+  line-height: 1.72;
 }
 .markdown :deep(li > p) {
   margin: 0;
@@ -1051,6 +1440,58 @@ function onLogout() {
 .markdown :deep(*:last-child) {
   margin-bottom: 0;
 }
+/* 术语释义:虚线下划线 + hover 暗色小贴士(GI / BMI / NRS-2002 …) */
+.markdown :deep(.gloss) {
+  position: relative;
+  border-bottom: 1px dashed #59a39c;
+  cursor: help;
+  outline: none;
+}
+.markdown :deep(.gloss)::after {
+  content: attr(data-tip);
+  position: absolute;
+  left: 0;
+  top: calc(100% + 9px);
+  width: max-content;
+  max-width: 280px;
+  background: #14403f;
+  color: #eaf6f4;
+  font-size: 12.5px;
+  font-weight: 400;
+  font-style: normal;
+  line-height: 1.62;
+  text-align: left;
+  padding: 9px 12px;
+  border-radius: 10px;
+  box-shadow: 0 10px 26px rgba(8, 30, 29, 0.3);
+  white-space: normal;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  pointer-events: none;
+  z-index: 30;
+}
+.markdown :deep(.gloss)::before {
+  content: "";
+  position: absolute;
+  left: 11px;
+  top: calc(100% + 3px);
+  border: 6px solid transparent;
+  border-bottom-color: #14403f;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  z-index: 31;
+  pointer-events: none;
+}
+.markdown :deep(.gloss):hover::after,
+.markdown :deep(.gloss):focus::after {
+  opacity: 1;
+  transform: translateY(0);
+}
+.markdown :deep(.gloss):hover::before,
+.markdown :deep(.gloss):focus::before {
+  opacity: 1;
+}
 
 .bubble .cites {
   margin-top: 12px;
@@ -1062,6 +1503,9 @@ function onLogout() {
   gap: 6px;
 }
 .cites-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-size: 12px;
   color: #9ca3af;
 }
@@ -1088,8 +1532,9 @@ function onLogout() {
 }
 .disclaimer-icon {
   flex-shrink: 0;
-  font-size: 13px;
-  line-height: 1.5;
+  display: inline-flex;
+  align-items: center;
+  margin-top: 1px;
 }
 .disclaimer-text b {
   color: #7a5600;
@@ -1106,6 +1551,9 @@ function onLogout() {
 }
 .qr-hint {
   width: 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-size: 12px;
   color: #9ca3af;
   margin-bottom: 2px;
@@ -1222,7 +1670,7 @@ function onLogout() {
   box-shadow: 0 8px 26px rgba(16, 40, 39, 0.12), 0 0 0 3px rgba(47, 139, 137, 0.16);
 }
 .cap-bar {
-  max-width: 1080px;
+  max-width: 1000px;
   margin: 0 auto;
   padding: 10px 24px 10px;
   display: flex;
@@ -1230,6 +1678,9 @@ function onLogout() {
   gap: 8px;
 }
 .cap-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-size: 12.5px;
   color: #2f8b89;
   background: rgba(255, 255, 255, 0.92);
@@ -1240,6 +1691,9 @@ function onLogout() {
   transition: all 0.12s;
   user-select: none;
   box-shadow: 0 2px 8px rgba(16, 40, 39, 0.06);
+}
+.cap-pill svg {
+  flex-shrink: 0;
 }
 .cap-pill:hover {
   background: #2f8b89;
@@ -1252,7 +1706,7 @@ function onLogout() {
   gap: 12px;
   align-items: flex-end;
   width: 100%;
-  max-width: 1080px;
+  max-width: 1000px;
   margin: 0 auto;
 }
 </style>

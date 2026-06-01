@@ -22,6 +22,13 @@ const router = createRouter({
       component: () => import("@/views/AdminView.vue"),
       meta: { requiresAuth: true, requiresAdmin: true },
     },
+    {
+      // 公开分享:无鉴权,直接凭 token 看 Q&A 快照
+      path: "/s/:token",
+      name: "share",
+      component: () => import("@/views/ShareView.vue"),
+      meta: { public: true },
+    },
   ],
 });
 

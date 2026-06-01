@@ -16,6 +16,8 @@ export interface ChatMessage {
   chartType?: string;
   // 风险筛查:可点快捷选项(点一下即作答),仅在最新一条上展示
   quickReplies?: string[];
+  // 用户对这条回复的反馈(👍/👎),持久化后下次回看仍亮起
+  rating?: "up" | "down";
 }
 
 export interface Conversation {
