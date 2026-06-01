@@ -35,6 +35,20 @@ _NUTRIENT_TARGETS: dict[str, tuple[str, float]] = {
 # title 入参保留(语义/未来导出用),当前不画到图上。
 
 
+def _nice_ceil(v: float) -> int:
+    """把坐标轴上限取整到「漂亮」的数(1/2/2.5/5 × 10ⁿ),避免出现 106 这种刻度。"""
+    import math
+
+    if v <= 0:
+        return 10
+    exp = math.floor(math.log10(v))
+    base = 10**exp
+    for m in (1, 2, 2.5, 5, 10):
+        if v <= m * base:
+            return int(m * base)
+    return int(10 * base)
+
+
 def _target_overlay(series: dict, yaxis: dict, y: list, target, target_label, higher_better) -> None:
     """给时序图加「推荐值参考线」+(摄入越多越好的指标再加)「达标区」绿带。
 
@@ -55,15 +69,22 @@ def _target_overlay(series: dict, yaxis: dict, y: list, target, target_label, hi
         "data": [{"yAxis": target}],
     }
     vals = [v for v in y if isinstance(v, (int, float)) and not isinstance(v, bool)]
-    top = round((max([*vals, target]) if vals else target) * 1.25)
+    top = _nice_ceil((max([*vals, target]) if vals else target) * 1.1)
     yaxis["max"] = top
     yaxis["min"] = 0
-    # 摄入/活动越多越好(蛋白/水/步数/睡眠)→ 推荐线以上染成浅绿「达标区」;
+    # 摄入/活动越多越好(蛋白/水/步数/睡眠)→ 推荐线以上染成浅绿「达标区」+ 角标;
     # 范围型(碳水/脂肪/热量)上不封顶不代表好,只给参考线、不染区。
     if higher_better:
         series["markArea"] = {
             "silent": True,
             "itemStyle": {"color": "rgba(34, 197, 94, 0.07)"},
+            "label": {
+                "show": True,
+                "position": "insideTopLeft",
+                "color": "#3a9d6b",
+                "fontSize": 11,
+                "formatter": "达标区",
+            },
             "data": [[{"yAxis": target}, {"yAxis": top}]],
         }
 
