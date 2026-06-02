@@ -89,7 +89,7 @@ def recall_at_k(
 
 
 def evaluate_plan(
-    cases: list[PlanCase],
+    cases: list[PlanCase] | None = None,
     recall_gold: list[tuple[str, set[str]]] | None = None,
     retriever: Callable[[str], list[str]] | None = None,
     k: int = 5,
@@ -99,6 +99,7 @@ def evaluate_plan(
     compliance / citation 永远离线计算；recall **仅在同时提供 gold + retriever 时**
     计算（需真实检索），否则记 0.0（离线 CI 路径不评 recall，留 W09 接真实检索）。
     """
+    cases = cases if cases is not None else GOLD_PLAN_CASES
     recall = (
         recall_at_k(recall_gold, retriever, k)
         if recall_gold is not None and retriever is not None
