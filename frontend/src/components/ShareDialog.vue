@@ -188,7 +188,7 @@ watch(visible, (v) => {
   justify-content: center;
   gap: 10px;
   padding: 30px 0;
-  color: var(--nc-text-muted);
+  color: #6b8b88;
 }
 .link-row {
   display: flex;
@@ -198,27 +198,27 @@ watch(visible, (v) => {
 .link-input {
   flex: 1 1 auto;
   min-width: 0;
-  background: var(--nc-surface-2);
-  border: 1px solid var(--nc-border);
+  background: #f4f8f7;
+  border: 1px solid #dce7e5;
   border-radius: 8px;
   padding: 9px 12px;
   font-size: 13px;
-  color: var(--nc-text);
+  color: #1f333a;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   outline: none;
 }
 .link-input:focus {
-  border-color: #34d399;
+  border-color: #2f8b89;
 }
 .hint {
   margin: 10px 0 18px;
   font-size: 12.5px;
-  color: var(--nc-text-muted);
+  color: #8a9b98;
   line-height: 1.6;
 }
 .channel-label {
   font-size: 12.5px;
-  color: var(--nc-text-muted);
+  color: #6b8b88;
   margin-bottom: 8px;
 }
 .channels {
@@ -231,25 +231,25 @@ watch(visible, (v) => {
   flex-direction: column;
   align-items: center;
   gap: 6px;
-  background: var(--nc-surface);
-  border: 1px solid var(--nc-border);
+  background: #fafdfc;
+  border: 1px solid #e6efed;
   border-radius: 10px;
   padding: 12px 6px;
   cursor: pointer;
   transition: all 0.14s;
 }
 .ch:hover {
-  background: var(--nc-surface-2);
-  border-color: #34d399;
+  background: #fff;
+  border-color: #2f8b89;
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(52, 211, 153, 0.16);
+  box-shadow: 0 4px 12px rgba(47, 139, 137, 0.14);
 }
 .ch svg {
   display: block;
 }
 .ch-name {
   font-size: 12.5px;
-  color: var(--nc-text);
+  color: #14403f;
   font-weight: 500;
 }
 
@@ -271,24 +271,57 @@ watch(visible, (v) => {
 .qr-img {
   width: 280px;
   height: 280px;
-  border: 1px solid var(--nc-border-strong);
+  border: 1px solid #e6efed;
   border-radius: 10px;
   background: #fff;
   padding: 6px;
 }
 .qr-hint {
   font-size: 12.5px;
-  color: var(--nc-text-muted);
+  color: #6b8b88;
   line-height: 1.7;
   text-align: center;
   margin: 0;
 }
 .qr-hint a {
-  color: #34d399;
+  color: #2f8b89;
   text-decoration: none;
   font-weight: 600;
 }
 .qr-hint a:hover {
   text-decoration: underline;
+}
+
+/* ============ 深色主题覆盖 ============ */
+[data-theme="dark"] .loading,
+[data-theme="dark"] .channel-label,
+[data-theme="dark"] .qr-hint,
+[data-theme="dark"] .hint {
+  color: var(--nc-text-muted);
+}
+[data-theme="dark"] .link-input {
+  background: var(--nc-surface-2);
+  border-color: var(--nc-border);
+  color: var(--nc-text);
+}
+[data-theme="dark"] .link-input:focus {
+  border-color: var(--nc-accent);
+}
+[data-theme="dark"] .ch {
+  background: var(--nc-surface);
+  border-color: var(--nc-border);
+}
+[data-theme="dark"] .ch:hover {
+  background: var(--nc-surface-2);
+  border-color: var(--nc-accent);
+}
+[data-theme="dark"] .ch-name {
+  color: var(--nc-text);
+}
+[data-theme="dark"] .qr-img {
+  border-color: var(--nc-border-strong);
+}
+[data-theme="dark"] .qr-hint a {
+  color: var(--nc-accent);
 }
 </style>

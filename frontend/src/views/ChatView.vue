@@ -758,9 +758,7 @@ function onLogout() {
 .layout {
   height: 100vh;
   display: flex;
-  background:
-    radial-gradient(1100px 600px at 72% -12%, rgba(52, 211, 153, 0.06) 0%, transparent 55%),
-    var(--nc-bg);
+  background: radial-gradient(1200px 600px at 70% -10%, #eef6f4 0%, #f4f7f6 45%, #eef2f1 100%);
 }
 
 /* 细滚动条 */
@@ -1031,7 +1029,7 @@ function onLogout() {
   position: relative;
   text-align: center;
   margin-top: 4vh;
-  color: var(--nc-text);
+  color: #374151;
 }
 /* 欢迎区柔光背景:几团品牌 / Agent 主题色的柔和光晕,告别纯白单调 */
 .welcome::before {
@@ -1065,16 +1063,16 @@ function onLogout() {
   align-items: center;
   justify-content: center;
   border-radius: 24px;
-  background: linear-gradient(150deg, rgba(52, 211, 153, 0.18), rgba(255, 255, 255, 0.04));
-  box-shadow: 0 10px 28px rgba(52, 211, 153, 0.16), 0 0 0 1px rgba(52, 211, 153, 0.16) inset;
+  background: radial-gradient(circle at 50% 38%, #ffffff, #ecf7f4);
+  box-shadow: 0 10px 26px rgba(47, 139, 137, 0.18), 0 0 0 1px rgba(47, 139, 137, 0.08) inset;
 }
 .welcome h2 {
   margin: 16px 0 4px;
   font-size: 22px;
-  color: var(--nc-text);
+  color: #14403f;
 }
 .welcome p {
-  color: var(--nc-text-muted);
+  color: #6b7280;
   margin-bottom: 22px;
   font-size: 13.5px;
 }
@@ -1090,13 +1088,13 @@ function onLogout() {
   position: relative;
   overflow: hidden;
   text-align: left;
-  background: var(--nc-surface);
-  border: 1px solid var(--nc-border);
+  background: #fff;
+  border: 1px solid #e9efee;
   border-radius: 18px;
   padding: 18px;
   cursor: pointer;
   transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 1px 2px rgba(16, 40, 39, 0.04);
 }
 /* 卡片右上角的主题色柔光晕染(随主题变量上色) */
 .cap-card::after {
@@ -1147,7 +1145,7 @@ function onLogout() {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--accent, #34d399);
+  color: var(--accent, #2f8b89);
   background: var(--accent-soft, rgba(47, 139, 137, 0.1));
   border: 1px solid var(--accent-soft, #e2efed);
   border-radius: 12px;
@@ -1157,7 +1155,7 @@ function onLogout() {
   z-index: 1;
   margin-top: 13px;
   font-weight: 700;
-  color: var(--nc-text);
+  color: #14403f;
   font-size: 15px;
 }
 .cap-desc {
@@ -1165,14 +1163,14 @@ function onLogout() {
   z-index: 1;
   margin-top: 3px;
   font-size: 12px;
-  color: var(--nc-text-muted);
+  color: #6b7280;
 }
 .cap-try {
   position: relative;
   z-index: 1;
   margin-top: 10px;
   font-size: 12px;
-  color: var(--accent, #34d399);
+  color: var(--accent, #2f8b89);
   background: var(--accent-soft, #eef6f5);
   border-radius: 8px;
   padding: 5px 9px;
@@ -1267,8 +1265,8 @@ function onLogout() {
   transition: background 0.12s, color 0.12s;
 }
 .msg-action:hover {
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--nc-text);
+  background: rgba(20, 64, 63, 0.06);
+  color: #14403f;
 }
 .msg-action:disabled {
   opacity: 0.45;
@@ -1286,8 +1284,8 @@ function onLogout() {
   padding: 5px 8px;
 }
 .msg-action.rate.active {
-  background: rgba(52, 211, 153, 0.14);
-  color: var(--nc-text);
+  background: rgba(47, 139, 137, 0.12);
+  color: #14403f;
 }
 .copy-btn.user {
   background: rgba(255, 255, 255, 0.22);
@@ -1299,7 +1297,7 @@ function onLogout() {
 /* Perplexity 风格:AI 回复去掉白卡片,纯文本直接铺在页面背景上 */
 .bubble.assistant {
   background: transparent;
-  color: var(--nc-text);
+  color: #1f333a;
   letter-spacing: 0.1px;
   padding: 2px 4px;
   border: none;
@@ -1334,12 +1332,12 @@ function onLogout() {
   font-weight: 700;
 }
 .pt-step b {
-  color: #34d399;
+  color: #2f8b89;
   font-weight: 600;
   font-style: normal;
 }
 .pt-step.pt-risk b {
-  color: #f0a878;
+  color: #c1592a;
 }
 .pt-sep {
   color: #c8d2d0;
@@ -1353,8 +1351,8 @@ function onLogout() {
   font-family: inherit;
 }
 .pt-tag-risk {
-  background: rgba(193, 89, 42, 0.18);
-  color: #f0a878;
+  background: #fbeee5;
+  color: #c1592a;
 }
 
 .bubble .meta {
@@ -1367,7 +1365,7 @@ function onLogout() {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: var(--nc-text-muted);
+  color: #6b7280;
 }
 
 /* ===== Markdown 紧凑排版 ===== */
@@ -1382,7 +1380,7 @@ function onLogout() {
   font-weight: 700;
   /* 每天之间留更大间距,分组更清晰(Perplexity 那种段落呼吸感) */
   margin: 18px 0 8px;
-  color: var(--nc-text);
+  color: #14403f;
 }
 .markdown :deep(p) {
   margin: 8px 0;
@@ -1400,15 +1398,15 @@ function onLogout() {
   margin: 0;
 }
 .markdown :deep(strong) {
-  color: var(--nc-text);
+  color: #14403f;
   font-weight: 700;
 }
 .markdown :deep(code) {
-  background: rgba(255, 255, 255, 0.06);
+  background: #eef2f2;
   padding: 1px 6px;
   border-radius: 5px;
   font-size: 13px;
-  color: #f6c177;
+  color: #b4531a;
 }
 .markdown :deep(pre) {
   background: #0f2e2d;
@@ -1430,11 +1428,11 @@ function onLogout() {
 }
 .markdown :deep(th),
 .markdown :deep(td) {
-  border: 1px solid var(--nc-border);
+  border: 1px solid #e5e7eb;
   padding: 6px 10px;
 }
 .markdown :deep(th) {
-  background: var(--nc-surface-2);
+  background: #f0f7f6;
 }
 .markdown :deep(*:first-child) {
   margin-top: 0;
@@ -1498,7 +1496,7 @@ function onLogout() {
 .bubble .cites {
   margin-top: 12px;
   padding-top: 10px;
-  border-top: 1px dashed var(--nc-border);
+  border-top: 1px dashed #e5e7eb;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -1513,9 +1511,9 @@ function onLogout() {
 }
 .cite {
   font-size: 12px;
-  color: #34d399;
-  background: var(--nc-accent-soft);
-  border: 1px solid var(--nc-accent-border);
+  color: #2f8b89;
+  background: #eef6f5;
+  border: 1px solid #d6e9e7;
   border-radius: 6px;
   padding: 2px 8px;
 }
@@ -1525,12 +1523,12 @@ function onLogout() {
   align-items: flex-start;
   gap: 7px;
   padding: 8px 11px;
-  background: rgba(251, 191, 36, 0.08);
-  border: 1px solid rgba(251, 191, 36, 0.28);
+  background: #fffaf0;
+  border: 1px solid #ffe6b0;
   border-radius: 9px;
   font-size: 12px;
   line-height: 1.55;
-  color: #fcd34d;
+  color: #946a00;
 }
 .disclaimer-icon {
   flex-shrink: 0;
@@ -1539,7 +1537,7 @@ function onLogout() {
   margin-top: 1px;
 }
 .disclaimer-text b {
-  color: #fde68a;
+  color: #7a5600;
   font-weight: 700;
 }
 
@@ -1562,18 +1560,18 @@ function onLogout() {
 }
 .quick-reply {
   font-size: 13px;
-  color: #34d399;
-  background: var(--nc-accent-soft);
-  border: 1px solid var(--nc-accent-border);
+  color: #2f8b89;
+  background: #eef6f5;
+  border: 1px solid #cfe6e4;
   border-radius: 999px;
   padding: 6px 14px;
   cursor: pointer;
   transition: all 0.12s;
 }
 .quick-reply:hover:not(:disabled) {
-  background: #34d399;
-  color: #07140e;
-  border-color: #34d399;
+  background: #2f8b89;
+  color: #fff;
+  border-color: #2f8b89;
 }
 .quick-reply:disabled {
   opacity: 0.5;
@@ -1591,22 +1589,22 @@ function onLogout() {
 }
 .chart-tab {
   font-size: 12.5px;
-  color: var(--nc-text-muted);
-  background: var(--nc-surface);
-  border: 1px solid var(--nc-border);
+  color: #5a6b69;
+  background: #f2f6f5;
+  border: 1px solid #e3edeb;
   border-radius: 8px;
   padding: 4px 12px;
   cursor: pointer;
   transition: all 0.12s;
 }
 .chart-tab:hover {
-  border-color: #34d399;
-  color: #34d399;
+  border-color: #2f8b89;
+  color: #2f8b89;
 }
 .chart-tab.active {
-  background: #34d399;
-  border-color: #34d399;
-  color: #07140e;
+  background: #2f8b89;
+  border-color: #2f8b89;
+  color: #fff;
 }
 
 /* 头像可点 + 选择器网格 */
@@ -1628,14 +1626,14 @@ function onLogout() {
   padding: 4px;
   cursor: pointer;
   transition: all 0.12s;
-  background: var(--nc-surface-2);
+  background: #f3f5f7;
 }
 .avatar-option:hover {
-  border-color: rgba(52, 211, 153, 0.5);
+  border-color: #9ad;
 }
 .avatar-option.active {
-  border-color: #34d399;
-  background: var(--nc-accent-soft);
+  border-color: #2f8b89;
+  background: #eef6f5;
 }
 .avatar-option img {
   width: 100%;
@@ -1652,9 +1650,9 @@ function onLogout() {
   padding: 30px 0 16px;
   background: linear-gradient(
     to top,
-    var(--nc-bg) 42%,
-    rgba(10, 15, 13, 0.82) 68%,
-    rgba(10, 15, 13, 0)
+    #eef3f2 42%,
+    rgba(238, 243, 242, 0.82) 68%,
+    rgba(238, 243, 242, 0)
   );
   pointer-events: none; /* 透明渐隐区可穿透,滚动作用到下方消息 */
 }
@@ -1665,11 +1663,11 @@ function onLogout() {
 /* 输入框做成悬浮卡片:白底 + 圆角 + 投影;聚焦时青绿光晕 */
 .composer :deep(.n-input) {
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.05);
-  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.4);
+  background: #fff;
+  box-shadow: 0 8px 26px rgba(16, 40, 39, 0.1);
 }
 .composer :deep(.n-input.n-input--focus) {
-  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.45), 0 0 0 3px rgba(52, 211, 153, 0.2);
+  box-shadow: 0 8px 26px rgba(16, 40, 39, 0.12), 0 0 0 3px rgba(47, 139, 137, 0.16);
 }
 .cap-bar {
   max-width: 1000px;
@@ -1684,23 +1682,23 @@ function onLogout() {
   align-items: center;
   gap: 6px;
   font-size: 12.5px;
-  color: #34d399;
-  background: var(--nc-surface-2);
-  border: 1px solid var(--nc-accent-border);
+  color: #2f8b89;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid #d6e9e7;
   border-radius: 999px;
   padding: 5px 13px;
   cursor: pointer;
   transition: all 0.12s;
   user-select: none;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 2px 8px rgba(16, 40, 39, 0.06);
 }
 .cap-pill svg {
   flex-shrink: 0;
 }
 .cap-pill:hover {
-  background: #34d399;
-  color: #07140e;
-  border-color: #34d399;
+  background: #2f8b89;
+  color: #fff;
+  border-color: #2f8b89;
 }
 .composer {
   padding: 0 24px;
@@ -1710,5 +1708,120 @@ function onLogout() {
   width: 100%;
   max-width: 1000px;
   margin: 0 auto;
+}
+
+/* ============ 深色主题覆盖(浅色为默认;仅 data-theme=dark 生效) ============ */
+[data-theme="dark"] .layout {
+  background: var(--nc-page);
+}
+[data-theme="dark"] .welcome,
+[data-theme="dark"] .welcome h2,
+[data-theme="dark"] .cap-name,
+[data-theme="dark"] .bubble.assistant,
+[data-theme="dark"] .markdown :deep(h1),
+[data-theme="dark"] .markdown :deep(h2),
+[data-theme="dark"] .markdown :deep(h3),
+[data-theme="dark"] .markdown :deep(h4),
+[data-theme="dark"] .markdown :deep(strong) {
+  color: var(--nc-text);
+}
+[data-theme="dark"] .welcome p,
+[data-theme="dark"] .cap-desc,
+[data-theme="dark"] .thinking {
+  color: var(--nc-text-muted);
+}
+[data-theme="dark"] .welcome-logo {
+  background: linear-gradient(150deg, rgba(52, 211, 153, 0.18), rgba(255, 255, 255, 0.04));
+  box-shadow: 0 10px 28px rgba(52, 211, 153, 0.16), 0 0 0 1px rgba(52, 211, 153, 0.16) inset;
+}
+[data-theme="dark"] .cap-card {
+  background: var(--nc-surface);
+  border-color: var(--nc-border);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+[data-theme="dark"] .msg-action:hover {
+  background: var(--nc-hover);
+  color: var(--nc-text);
+}
+[data-theme="dark"] .msg-action.rate.active {
+  background: var(--nc-accent-soft);
+  color: var(--nc-text);
+}
+[data-theme="dark"] .markdown :deep(code) {
+  background: var(--nc-hover);
+  color: #f6c177;
+}
+[data-theme="dark"] .markdown :deep(th),
+[data-theme="dark"] .markdown :deep(td) {
+  border-color: var(--nc-border);
+}
+[data-theme="dark"] .markdown :deep(th) {
+  background: var(--nc-surface-2);
+}
+[data-theme="dark"] .pt-step b {
+  color: var(--nc-accent);
+}
+[data-theme="dark"] .pt-step.pt-risk b {
+  color: #f0a878;
+}
+[data-theme="dark"] .pt-tag-risk {
+  background: rgba(193, 89, 42, 0.18);
+  color: #f0a878;
+}
+[data-theme="dark"] .bubble .cites {
+  border-top-color: var(--nc-border);
+}
+[data-theme="dark"] .cite,
+[data-theme="dark"] .quick-reply {
+  color: var(--nc-accent);
+  background: var(--nc-accent-soft);
+  border-color: var(--nc-accent-border);
+}
+[data-theme="dark"] .quick-reply:hover:not(:disabled),
+[data-theme="dark"] .chart-tab.active,
+[data-theme="dark"] .cap-pill:hover {
+  background: var(--nc-accent);
+  color: var(--nc-on-accent);
+  border-color: var(--nc-accent);
+}
+[data-theme="dark"] .disclaimer {
+  background: rgba(251, 191, 36, 0.08);
+  border-color: rgba(251, 191, 36, 0.28);
+  color: #fcd34d;
+}
+[data-theme="dark"] .disclaimer-text b {
+  color: #fde68a;
+}
+[data-theme="dark"] .chart-tab {
+  color: var(--nc-text-muted);
+  background: var(--nc-surface);
+  border-color: var(--nc-border);
+}
+[data-theme="dark"] .chart-tab:hover {
+  border-color: var(--nc-accent);
+  color: var(--nc-accent);
+}
+[data-theme="dark"] .avatar-option {
+  background: var(--nc-surface-2);
+}
+[data-theme="dark"] .avatar-option.active {
+  background: var(--nc-accent-soft);
+  border-color: var(--nc-accent);
+}
+[data-theme="dark"] .composer-area {
+  background: linear-gradient(to top, var(--nc-composer-fade), var(--nc-composer-fade-0));
+}
+[data-theme="dark"] .composer :deep(.n-input) {
+  background: var(--nc-surface-2);
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.4);
+}
+[data-theme="dark"] .cap-pill {
+  color: var(--nc-accent);
+  background: var(--nc-surface-2);
+  border-color: var(--nc-accent-border);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+[data-theme="dark"] .reg-link {
+  color: var(--nc-accent);
 }
 </style>

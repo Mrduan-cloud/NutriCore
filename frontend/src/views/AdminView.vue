@@ -286,7 +286,7 @@ function logout() {
 <style scoped>
 .admin-wrap {
   min-height: 100%;
-  background: var(--nc-bg);
+  background: #eef3f2;
   display: flex;
   flex-direction: column;
 }
@@ -296,9 +296,8 @@ function logout() {
   justify-content: space-between;
   padding: 0 24px;
   height: 60px;
-  background: linear-gradient(120deg, #0e3b30, #14523f);
+  background: linear-gradient(120deg, #1f5f5e, #2f8b89);
   color: #fff;
-  border-bottom: 1px solid var(--nc-border);
 }
 .bar-left {
   display: flex;
@@ -344,7 +343,7 @@ function logout() {
   margin-bottom: 14px;
 }
 .stat {
-  color: var(--nc-text-muted);
+  color: #46615f;
   font-size: 14px;
 }
 .actions {
@@ -352,10 +351,9 @@ function logout() {
   gap: 8px;
 }
 .table-card {
-  background: var(--nc-surface);
-  border: 1px solid var(--nc-border);
+  background: #fff;
   border-radius: 14px;
-  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 6px 22px rgba(20, 64, 63, 0.08);
   overflow: hidden;
 }
 .tbl {
@@ -366,36 +364,36 @@ function logout() {
 .tbl thead th {
   text-align: left;
   padding: 13px 16px;
-  background: var(--nc-surface-2);
-  color: var(--nc-text-muted);
+  background: #f4f8f7;
+  color: #5b736f;
   font-weight: 600;
-  border-bottom: 1px solid var(--nc-border);
+  border-bottom: 1px solid #e6efed;
 }
 .tbl tbody td {
   padding: 12px 16px;
-  border-bottom: 1px solid var(--nc-border);
+  border-bottom: 1px solid #f0f5f4;
   vertical-align: middle;
 }
 .tbl tbody tr:last-child td {
   border-bottom: none;
 }
 .tbl tbody tr:hover {
-  background: rgba(255, 255, 255, 0.03);
+  background: #f8fbfa;
 }
 .uname {
   font-weight: 600;
-  color: var(--nc-text);
+  color: #14403f;
   margin-right: 6px;
 }
 .me-tag {
-  background: var(--nc-accent-soft);
-  color: #34d399;
+  background: #e3f0ee;
+  color: #2f8b89;
 }
 .num {
   text-align: center;
 }
 .muted {
-  color: var(--nc-text-muted);
+  color: #8a9b98;
   font-size: 13px;
 }
 .ops-col {
@@ -414,12 +412,45 @@ function logout() {
 }
 .form-rows label {
   font-size: 13px;
-  color: var(--nc-text-muted);
+  color: #5b736f;
   margin-top: 6px;
 }
 .modal-actions {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+}
+
+/* ============ 深色主题覆盖 ============ */
+[data-theme="dark"] .admin-wrap {
+  background: var(--nc-bg);
+}
+[data-theme="dark"] .table-card {
+  background: var(--nc-surface);
+  border: 1px solid var(--nc-border);
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.3);
+}
+[data-theme="dark"] .stat,
+[data-theme="dark"] .muted,
+[data-theme="dark"] .form-rows label {
+  color: var(--nc-text-muted);
+}
+[data-theme="dark"] .tbl thead th {
+  background: var(--nc-surface-2);
+  color: var(--nc-text-muted);
+  border-bottom-color: var(--nc-border);
+}
+[data-theme="dark"] .tbl tbody td {
+  border-bottom-color: var(--nc-border);
+}
+[data-theme="dark"] .tbl tbody tr:hover {
+  background: var(--nc-hover);
+}
+[data-theme="dark"] .uname {
+  color: var(--nc-text);
+}
+[data-theme="dark"] .me-tag {
+  background: var(--nc-accent-soft);
+  color: var(--nc-accent);
 }
 </style>
