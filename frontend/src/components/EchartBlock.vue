@@ -12,10 +12,11 @@ let ro: ResizeObserver | null = null;
 function render() {
   if (!el.value || !props.option) return;
   if (!chart) chart = echarts.init(el.value);
-  // 统一一点主题色,贴合页面青绿色调
+  // 统一一点主题色,贴合页面深色 + 翠绿色调
   const themed = {
-    color: ["#2F8B89"],
-    textStyle: { fontFamily: "inherit" },
+    color: ["#34d399"],
+    backgroundColor: "transparent",
+    textStyle: { fontFamily: "inherit", color: "#cbd5e1" },
     ...props.option,
   };
   chart.setOption(themed, true);
@@ -58,8 +59,8 @@ watch(() => props.option, render, { deep: true });
   width: 100%;
   height: 260px;
   margin-top: 12px;
-  border: 1px solid #eef2f2;
+  border: 1px solid var(--nc-border);
   border-radius: 10px;
-  background: #fbfdfd;
+  background: var(--nc-surface);
 }
 </style>

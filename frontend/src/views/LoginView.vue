@@ -182,9 +182,9 @@ async function onRegister() {
   align-items: center;
   justify-content: center;
   background:
-    radial-gradient(900px 520px at 18% 12%, rgba(111, 227, 200, 0.28) 0%, transparent 55%),
-    radial-gradient(800px 600px at 88% 88%, rgba(28, 84, 82, 0.55) 0%, transparent 60%),
-    linear-gradient(140deg, #2f8b89 0%, #1f5f5e 58%, #11302f 100%);
+    radial-gradient(820px 520px at 16% 10%, rgba(52, 211, 153, 0.16) 0%, transparent 55%),
+    radial-gradient(760px 580px at 86% 90%, rgba(16, 60, 45, 0.5) 0%, transparent 60%),
+    linear-gradient(160deg, #0b1310 0%, #0a0f0d 60%, #080c0a 100%);
   padding: 24px;
   overflow: hidden;
 }
@@ -203,10 +203,10 @@ async function onRegister() {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(150deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.06));
-  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: linear-gradient(150deg, rgba(52, 211, 153, 0.22), rgba(255, 255, 255, 0.04));
+  border: 1px solid rgba(52, 211, 153, 0.3);
   border-radius: 22px;
-  box-shadow: 0 12px 30px rgba(8, 30, 29, 0.35);
+  box-shadow: 0 12px 36px rgba(52, 211, 153, 0.18);
   backdrop-filter: blur(4px);
 }
 .brand h1 {
@@ -214,6 +214,10 @@ async function onRegister() {
   font-weight: 800;
   letter-spacing: 1px;
   margin: 14px 0 6px;
+  background: linear-gradient(90deg, #e8ecea, #6ee7b7);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 .brand p {
   opacity: 0.92;
@@ -224,7 +228,7 @@ async function onRegister() {
   width: 384px;
   max-width: 90vw;
   border-radius: 20px;
-  box-shadow: 0 24px 60px rgba(6, 24, 23, 0.35), 0 2px 0 rgba(255, 255, 255, 0.5) inset;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.5);
   animation: rise 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.06s both;
 }
 @keyframes rise {
@@ -240,7 +244,7 @@ async function onRegister() {
 .title {
   text-align: center;
   margin-bottom: 18px;
-  color: #1f2937;
+  color: var(--nc-text);
 }
 .personas {
   display: flex;
@@ -252,7 +256,7 @@ async function onRegister() {
 .p-label {
   width: 100%;
   font-size: 12px;
-  color: #9ca3af;
+  color: var(--nc-text-dim);
   margin-bottom: 2px;
 }
 .persona {
@@ -260,8 +264,8 @@ async function onRegister() {
   flex-direction: column;
   align-items: flex-start;
   gap: 2px;
-  background: #f4f8f7;
-  border: 1px solid #dcebe9;
+  background: rgba(52, 211, 153, 0.06);
+  border: 1px solid rgba(52, 211, 153, 0.18);
   border-radius: 10px;
   padding: 7px 12px;
   cursor: pointer;
@@ -269,33 +273,29 @@ async function onRegister() {
   min-width: 76px;
 }
 .persona:hover {
-  border-color: #2f8b89;
+  border-color: rgba(52, 211, 153, 0.5);
 }
 .persona.active {
-  background: #2f8b89;
-  border-color: #2f8b89;
-}
-.persona.active .p-name,
-.persona.active .p-tag {
-  color: #fff;
+  background: rgba(52, 211, 153, 0.16);
+  border-color: #34d399;
 }
 .p-name {
   font-size: 14px;
   font-weight: 600;
-  color: #14403f;
+  color: #e8ecea;
 }
 .p-tag {
   font-size: 11px;
-  color: #6b8b88;
+  color: #94a3a0;
 }
 .reg-row {
   text-align: center;
   margin-top: 14px;
   font-size: 13px;
-  color: #6b7280;
+  color: var(--nc-text-muted);
 }
 .reg-link {
-  color: #2f8b89;
+  color: #34d399;
   font-weight: 600;
   cursor: pointer;
 }
@@ -309,13 +309,13 @@ async function onRegister() {
 }
 .hint {
   text-align: center;
-  color: #9ca3af;
+  color: var(--nc-text-dim);
   font-size: 13px;
   margin-top: 12px;
 }
 .admin-hint {
   margin-top: 2px;
-  color: #b8c0c0;
+  color: #4b5a55;
   font-size: 12px;
 }
 .footer {

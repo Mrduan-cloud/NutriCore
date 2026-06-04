@@ -286,7 +286,7 @@ function logout() {
 <style scoped>
 .admin-wrap {
   min-height: 100%;
-  background: #eef3f2;
+  background: var(--nc-bg);
   display: flex;
   flex-direction: column;
 }
@@ -296,8 +296,9 @@ function logout() {
   justify-content: space-between;
   padding: 0 24px;
   height: 60px;
-  background: linear-gradient(120deg, #1f5f5e, #2f8b89);
+  background: linear-gradient(120deg, #0e3b30, #14523f);
   color: #fff;
+  border-bottom: 1px solid var(--nc-border);
 }
 .bar-left {
   display: flex;
@@ -343,7 +344,7 @@ function logout() {
   margin-bottom: 14px;
 }
 .stat {
-  color: #46615f;
+  color: var(--nc-text-muted);
   font-size: 14px;
 }
 .actions {
@@ -351,9 +352,10 @@ function logout() {
   gap: 8px;
 }
 .table-card {
-  background: #fff;
+  background: var(--nc-surface);
+  border: 1px solid var(--nc-border);
   border-radius: 14px;
-  box-shadow: 0 6px 22px rgba(20, 64, 63, 0.08);
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.3);
   overflow: hidden;
 }
 .tbl {
@@ -364,36 +366,36 @@ function logout() {
 .tbl thead th {
   text-align: left;
   padding: 13px 16px;
-  background: #f4f8f7;
-  color: #5b736f;
+  background: var(--nc-surface-2);
+  color: var(--nc-text-muted);
   font-weight: 600;
-  border-bottom: 1px solid #e6efed;
+  border-bottom: 1px solid var(--nc-border);
 }
 .tbl tbody td {
   padding: 12px 16px;
-  border-bottom: 1px solid #f0f5f4;
+  border-bottom: 1px solid var(--nc-border);
   vertical-align: middle;
 }
 .tbl tbody tr:last-child td {
   border-bottom: none;
 }
 .tbl tbody tr:hover {
-  background: #f8fbfa;
+  background: rgba(255, 255, 255, 0.03);
 }
 .uname {
   font-weight: 600;
-  color: #14403f;
+  color: var(--nc-text);
   margin-right: 6px;
 }
 .me-tag {
-  background: #e3f0ee;
-  color: #2f8b89;
+  background: var(--nc-accent-soft);
+  color: #34d399;
 }
 .num {
   text-align: center;
 }
 .muted {
-  color: #8a9b98;
+  color: var(--nc-text-muted);
   font-size: 13px;
 }
 .ops-col {
@@ -412,7 +414,7 @@ function logout() {
 }
 .form-rows label {
   font-size: 13px;
-  color: #5b736f;
+  color: var(--nc-text-muted);
   margin-top: 6px;
 }
 .modal-actions {

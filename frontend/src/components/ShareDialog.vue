@@ -188,7 +188,7 @@ watch(visible, (v) => {
   justify-content: center;
   gap: 10px;
   padding: 30px 0;
-  color: #6b8b88;
+  color: var(--nc-text-muted);
 }
 .link-row {
   display: flex;
@@ -198,27 +198,27 @@ watch(visible, (v) => {
 .link-input {
   flex: 1 1 auto;
   min-width: 0;
-  background: #f4f8f7;
-  border: 1px solid #dce7e5;
+  background: var(--nc-surface-2);
+  border: 1px solid var(--nc-border);
   border-radius: 8px;
   padding: 9px 12px;
   font-size: 13px;
-  color: #1f333a;
+  color: var(--nc-text);
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   outline: none;
 }
 .link-input:focus {
-  border-color: #2f8b89;
+  border-color: #34d399;
 }
 .hint {
   margin: 10px 0 18px;
   font-size: 12.5px;
-  color: #8a9b98;
+  color: var(--nc-text-muted);
   line-height: 1.6;
 }
 .channel-label {
   font-size: 12.5px;
-  color: #6b8b88;
+  color: var(--nc-text-muted);
   margin-bottom: 8px;
 }
 .channels {
@@ -231,25 +231,25 @@ watch(visible, (v) => {
   flex-direction: column;
   align-items: center;
   gap: 6px;
-  background: #fafdfc;
-  border: 1px solid #e6efed;
+  background: var(--nc-surface);
+  border: 1px solid var(--nc-border);
   border-radius: 10px;
   padding: 12px 6px;
   cursor: pointer;
   transition: all 0.14s;
 }
 .ch:hover {
-  background: #fff;
-  border-color: #2f8b89;
+  background: var(--nc-surface-2);
+  border-color: #34d399;
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(47, 139, 137, 0.14);
+  box-shadow: 0 4px 12px rgba(52, 211, 153, 0.16);
 }
 .ch svg {
   display: block;
 }
 .ch-name {
   font-size: 12.5px;
-  color: #14403f;
+  color: var(--nc-text);
   font-weight: 500;
 }
 
@@ -271,20 +271,20 @@ watch(visible, (v) => {
 .qr-img {
   width: 280px;
   height: 280px;
-  border: 1px solid #e6efed;
+  border: 1px solid var(--nc-border-strong);
   border-radius: 10px;
   background: #fff;
   padding: 6px;
 }
 .qr-hint {
   font-size: 12.5px;
-  color: #6b8b88;
+  color: var(--nc-text-muted);
   line-height: 1.7;
   text-align: center;
   margin: 0;
 }
 .qr-hint a {
-  color: #2f8b89;
+  color: #34d399;
   text-decoration: none;
   font-weight: 600;
 }

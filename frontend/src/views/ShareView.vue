@@ -169,7 +169,7 @@ onMounted(async () => {
 <style scoped>
 .share-wrap {
   min-height: 100%;
-  background: #eef3f2;
+  background: var(--nc-bg);
   display: flex;
   flex-direction: column;
 }
@@ -178,8 +178,9 @@ onMounted(async () => {
   align-items: center;
   justify-content: space-between;
   padding: 14px 24px;
-  background: linear-gradient(120deg, #1f5f5e, #2f8b89);
+  background: linear-gradient(120deg, #0e3b30, #14523f);
   color: #fff;
+  border-bottom: 1px solid var(--nc-border);
 }
 .brand {
   display: flex;
@@ -222,19 +223,19 @@ onMounted(async () => {
   align-items: center;
   gap: 12px;
   padding: 60px 12px;
-  color: #5b736f;
+  color: var(--nc-text-muted);
 }
 .error-icon {
   color: #9bb3af;
   opacity: 0.7;
 }
 .error .visit-btn {
-  color: #2f8b89;
-  background: #fff;
-  border-color: #cfe1de;
+  color: #34d399;
+  background: var(--nc-surface-2);
+  border-color: var(--nc-accent-border);
 }
 .error .visit-btn:hover {
-  background: #f3fbfa;
+  background: var(--nc-surface);
 }
 .snap {
   display: flex;
@@ -268,7 +269,7 @@ onMounted(async () => {
   white-space: pre-wrap;
 }
 .answer {
-  color: #1f333a;
+  color: var(--nc-text);
   padding: 4px;
   font-size: 16px;
   line-height: 1.78;
@@ -279,7 +280,7 @@ onMounted(async () => {
   gap: 8px;
   margin-bottom: 10px;
   font-size: 12.5px;
-  color: #6b8b88;
+  color: var(--nc-text-muted);
   flex-wrap: wrap;
 }
 .meta-spacer {
@@ -290,7 +291,7 @@ onMounted(async () => {
   align-items: center;
   gap: 4px;
   font-size: 12px;
-  color: #8a9b98;
+  color: var(--nc-text-muted);
 }
 .markdown :deep(h1),
 .markdown :deep(h2),
@@ -299,7 +300,7 @@ onMounted(async () => {
   font-size: 16.5px;
   font-weight: 700;
   margin: 18px 0 8px;
-  color: #14403f;
+  color: var(--nc-text);
 }
 .markdown :deep(p) {
   margin: 8px 0;
@@ -314,7 +315,7 @@ onMounted(async () => {
   line-height: 1.72;
 }
 .markdown :deep(strong) {
-  color: #14403f;
+  color: var(--nc-text);
 }
 /* 术语释义 hover 小贴士(与对话页一致) */
 .markdown :deep(.gloss) {
@@ -352,8 +353,8 @@ onMounted(async () => {
 }
 .chart-block {
   margin-top: 12px;
-  background: #fff;
-  border: 1px solid #eef2f1;
+  background: var(--nc-surface);
+  border: 1px solid var(--nc-border);
   border-radius: 12px;
   padding: 12px;
 }
@@ -363,23 +364,23 @@ onMounted(async () => {
   margin-bottom: 8px;
 }
 .chart-tab {
-  background: #f3faf9;
-  border: 1px solid #d6e9e7;
-  color: #2f8b89;
+  background: var(--nc-surface);
+  border: 1px solid var(--nc-border);
+  color: #34d399;
   font-size: 12.5px;
   padding: 4px 11px;
   border-radius: 999px;
   cursor: pointer;
 }
 .chart-tab.active {
-  background: #2f8b89;
-  color: #fff;
-  border-color: #2f8b89;
+  background: #34d399;
+  color: #07140e;
+  border-color: #34d399;
 }
 .cites {
   margin-top: 14px;
   padding-top: 10px;
-  border-top: 1px dashed #d8e5e3;
+  border-top: 1px dashed var(--nc-border);
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
@@ -392,22 +393,22 @@ onMounted(async () => {
   color: #9ca3af;
 }
 .cite {
-  color: #2f8b89;
-  background: #eef6f5;
+  color: #34d399;
+  background: var(--nc-accent-soft);
   padding: 2px 8px;
   border-radius: 999px;
 }
 .share-foot {
   margin-top: 18px;
   padding: 16px;
-  border-top: 1px solid #e0eae8;
+  border-top: 1px solid var(--nc-border);
   font-size: 13px;
-  color: #8a9b98;
+  color: var(--nc-text-muted);
   text-align: center;
   line-height: 1.7;
 }
 .share-foot a {
-  color: #2f8b89;
+  color: #34d399;
   text-decoration: none;
   font-weight: 600;
   margin-left: 4px;
