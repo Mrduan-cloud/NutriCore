@@ -509,6 +509,7 @@ function onLogout() {
         </svg>
       </button>
       <main ref="listRef" class="messages">
+        <div class="messages-inner">
         <!-- 欢迎 -->
         <div v-if="messages.length === 0" class="welcome">
           <div class="welcome-logo">🥗</div>
@@ -698,6 +699,7 @@ function onLogout() {
             </div>
           </div>
           <n-avatar v-if="m.role === 'user'" round class="avatar" :src="userAvatar" color="#e8eef0" />
+        </div>
         </div>
       </main>
 
@@ -1017,13 +1019,17 @@ function onLogout() {
 .messages {
   flex: 1;
   overflow-y: auto;
-  /* 底部留白:给悬浮输入区让位,最后一条消息能滚到其上方 */
-  padding: 28px 24px 132px;
+  /* 全宽滚动容器 → 滚动条贴在窗口最右,而非居中阅读列的右缘 */
   width: 100%;
-  /* Claude / ChatGPT 式居中阅读列:固定舒适宽度,两侧对称留白;
-     侧栏收起也只是对称居中,不会偏移、不会单侧空一大块。 */
+  /* 底部留白:给悬浮输入区让位,最后一条消息能滚到其上方 */
+  padding: 28px 0 132px;
+}
+/* Claude / ChatGPT 式居中阅读列:滚动在外层(全宽)、内容在内层居中,
+   两侧对称留白;滚动条因此落在窗口右缘而非半空中。 */
+.messages-inner {
   max-width: 1000px;
   margin: 0 auto;
+  padding: 0 24px;
 }
 .welcome {
   position: relative;
