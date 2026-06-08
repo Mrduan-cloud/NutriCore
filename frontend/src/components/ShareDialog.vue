@@ -291,4 +291,37 @@ watch(visible, (v) => {
 .qr-hint a:hover {
   text-decoration: underline;
 }
+
+/* ============ 深色主题覆盖 ============ */
+[data-theme="dark"] .loading,
+[data-theme="dark"] .channel-label,
+[data-theme="dark"] .qr-hint,
+[data-theme="dark"] .hint {
+  color: var(--nc-text-muted);
+}
+[data-theme="dark"] .link-input {
+  background: var(--nc-surface-2);
+  border-color: var(--nc-border);
+  color: var(--nc-text);
+}
+[data-theme="dark"] .link-input:focus {
+  border-color: var(--nc-accent);
+}
+[data-theme="dark"] .ch {
+  background: var(--nc-surface);
+  border-color: var(--nc-border);
+}
+[data-theme="dark"] .ch:hover {
+  background: var(--nc-surface-2);
+  border-color: var(--nc-accent);
+}
+[data-theme="dark"] .ch-name {
+  color: var(--nc-text);
+}
+[data-theme="dark"] .qr-img {
+  border-color: var(--nc-border-strong);
+}
+[data-theme="dark"] .qr-hint a {
+  color: var(--nc-accent);
+}
 </style>

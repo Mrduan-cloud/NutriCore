@@ -415,4 +415,58 @@ onMounted(async () => {
 .share-foot a:hover {
   text-decoration: underline;
 }
+
+/* ============ 深色主题覆盖 ============ */
+[data-theme="dark"] .share-wrap {
+  background: var(--nc-bg);
+}
+[data-theme="dark"] .error,
+[data-theme="dark"] .meta,
+[data-theme="dark"] .views,
+[data-theme="dark"] .share-foot {
+  color: var(--nc-text-muted);
+}
+[data-theme="dark"] .answer,
+[data-theme="dark"] .markdown :deep(h1),
+[data-theme="dark"] .markdown :deep(h2),
+[data-theme="dark"] .markdown :deep(h3),
+[data-theme="dark"] .markdown :deep(h4),
+[data-theme="dark"] .markdown :deep(strong) {
+  color: var(--nc-text);
+}
+[data-theme="dark"] .error .visit-btn {
+  color: var(--nc-accent);
+  background: var(--nc-surface-2);
+  border-color: var(--nc-accent-border);
+}
+[data-theme="dark"] .error .visit-btn:hover {
+  background: var(--nc-surface);
+}
+[data-theme="dark"] .chart-block {
+  background: var(--nc-surface);
+  border-color: var(--nc-border);
+}
+[data-theme="dark"] .chart-tab {
+  background: var(--nc-surface);
+  border-color: var(--nc-border);
+  color: var(--nc-accent);
+}
+[data-theme="dark"] .chart-tab.active {
+  background: var(--nc-accent);
+  color: var(--nc-on-accent);
+  border-color: var(--nc-accent);
+}
+[data-theme="dark"] .cites {
+  border-top-color: var(--nc-border);
+}
+[data-theme="dark"] .cite {
+  color: var(--nc-accent);
+  background: var(--nc-accent-soft);
+}
+[data-theme="dark"] .share-foot {
+  border-top-color: var(--nc-border);
+}
+[data-theme="dark"] .share-foot a {
+  color: var(--nc-accent-2);
+}
 </style>

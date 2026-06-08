@@ -420,4 +420,37 @@ function logout() {
   justify-content: flex-end;
   gap: 8px;
 }
+
+/* ============ 深色主题覆盖 ============ */
+[data-theme="dark"] .admin-wrap {
+  background: var(--nc-bg);
+}
+[data-theme="dark"] .table-card {
+  background: var(--nc-surface);
+  border: 1px solid var(--nc-border);
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.3);
+}
+[data-theme="dark"] .stat,
+[data-theme="dark"] .muted,
+[data-theme="dark"] .form-rows label {
+  color: var(--nc-text-muted);
+}
+[data-theme="dark"] .tbl thead th {
+  background: var(--nc-surface-2);
+  color: var(--nc-text-muted);
+  border-bottom-color: var(--nc-border);
+}
+[data-theme="dark"] .tbl tbody td {
+  border-bottom-color: var(--nc-border);
+}
+[data-theme="dark"] .tbl tbody tr:hover {
+  background: var(--nc-hover);
+}
+[data-theme="dark"] .uname {
+  color: var(--nc-text);
+}
+[data-theme="dark"] .me-tag {
+  background: var(--nc-accent-soft);
+  color: var(--nc-accent);
+}
 </style>

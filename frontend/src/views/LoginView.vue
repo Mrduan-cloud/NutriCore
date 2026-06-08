@@ -323,4 +323,40 @@ async function onRegister() {
   color: rgba(255, 255, 255, 0.75);
   font-size: 13px;
 }
+
+/* ============ 深色主题覆盖 ============ */
+[data-theme="dark"] .login-wrap {
+  background:
+    radial-gradient(820px 520px at 16% 10%, rgba(52, 211, 153, 0.16) 0%, transparent 55%),
+    radial-gradient(760px 580px at 86% 90%, rgba(16, 60, 45, 0.5) 0%, transparent 60%),
+    linear-gradient(160deg, #0b1310 0%, #0a1411 60%, #080c0a 100%);
+}
+[data-theme="dark"] .login-card {
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.5);
+}
+[data-theme="dark"] .title,
+[data-theme="dark"] .p-name {
+  color: var(--nc-text);
+}
+[data-theme="dark"] .p-label,
+[data-theme="dark"] .hint {
+  color: var(--nc-text-dim);
+}
+[data-theme="dark"] .p-tag {
+  color: var(--nc-text-muted);
+}
+[data-theme="dark"] .persona {
+  background: var(--nc-accent-soft);
+  border-color: var(--nc-accent-border);
+}
+[data-theme="dark"] .persona.active {
+  background: rgba(52, 211, 153, 0.16);
+  border-color: var(--nc-accent);
+}
+[data-theme="dark"] .reg-link {
+  color: var(--nc-accent);
+}
+[data-theme="dark"] .admin-hint {
+  color: #4b5a55;
+}
 </style>

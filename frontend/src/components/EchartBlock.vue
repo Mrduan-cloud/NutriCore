@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, watch, nextTick } from "vue";
 import * as echarts from "echarts";
+import { useThemeStore } from "@/stores/theme";
 
 // 渲染后端 data_insight 下发的 ECharts 配置。option 为完整 ECharts option 对象。
 const props = defineProps<{ option: Record<string, any> | null | undefined }>();
+const themeStore = useThemeStore();
 
 const el = ref<HTMLDivElement | null>(null);
 let chart: echarts.ECharts | null = null;
@@ -11,11 +13,17 @@ let ro: ResizeObserver | null = null;
 
 function render() {
   if (!el.value || !props.option) return;
-  if (!chart) chart = echarts.init(el.value);
-  // 统一一点主题色,贴合页面青绿色调
+  const dark = themeStore.theme === "dark";
+  // 主题切换时重建实例 —— echarts 内置 dark/light 主题仅在 init 时生效
+  if (chart) {
+    chart.dispose();
+    chart = null;
+  }
+  chart = echarts.init(el.value, dark ? "dark" : undefined);
   const themed = {
-    color: ["#2F8B89"],
-    textStyle: { fontFamily: "inherit" },
+    color: [dark ? "#34d399" : "#2F8B89"],
+    backgroundColor: "transparent",
+    textStyle: { fontFamily: "inherit", color: dark ? "#cbd5e1" : "#374151" },
     ...props.option,
   };
   chart.setOption(themed, true);
@@ -47,6 +55,7 @@ onBeforeUnmount(() => {
 });
 
 watch(() => props.option, render, { deep: true });
+watch(() => themeStore.theme, render);
 </script>
 
 <template>
@@ -61,5 +70,11 @@ watch(() => props.option, render, { deep: true });
   border: 1px solid #eef2f2;
   border-radius: 10px;
   background: #fbfdfd;
+}
+
+/* ============ 深色主题覆盖 ============ */
+[data-theme="dark"] .echart {
+  border-color: var(--nc-border);
+  background: var(--nc-surface);
 }
 </style>

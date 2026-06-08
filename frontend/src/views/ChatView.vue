@@ -1709,4 +1709,119 @@ function onLogout() {
   max-width: 1000px;
   margin: 0 auto;
 }
+
+/* ============ 深色主题覆盖(浅色为默认;仅 data-theme=dark 生效) ============ */
+[data-theme="dark"] .layout {
+  background: var(--nc-page);
+}
+[data-theme="dark"] .welcome,
+[data-theme="dark"] .welcome h2,
+[data-theme="dark"] .cap-name,
+[data-theme="dark"] .bubble.assistant,
+[data-theme="dark"] .markdown :deep(h1),
+[data-theme="dark"] .markdown :deep(h2),
+[data-theme="dark"] .markdown :deep(h3),
+[data-theme="dark"] .markdown :deep(h4),
+[data-theme="dark"] .markdown :deep(strong) {
+  color: var(--nc-text);
+}
+[data-theme="dark"] .welcome p,
+[data-theme="dark"] .cap-desc,
+[data-theme="dark"] .thinking {
+  color: var(--nc-text-muted);
+}
+[data-theme="dark"] .welcome-logo {
+  background: linear-gradient(150deg, rgba(52, 211, 153, 0.18), rgba(255, 255, 255, 0.04));
+  box-shadow: 0 10px 28px rgba(52, 211, 153, 0.16), 0 0 0 1px rgba(52, 211, 153, 0.16) inset;
+}
+[data-theme="dark"] .cap-card {
+  background: var(--nc-surface);
+  border-color: var(--nc-border);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+[data-theme="dark"] .msg-action:hover {
+  background: var(--nc-hover);
+  color: var(--nc-text);
+}
+[data-theme="dark"] .msg-action.rate.active {
+  background: var(--nc-accent-soft);
+  color: var(--nc-text);
+}
+[data-theme="dark"] .markdown :deep(code) {
+  background: var(--nc-hover);
+  color: #f6c177;
+}
+[data-theme="dark"] .markdown :deep(th),
+[data-theme="dark"] .markdown :deep(td) {
+  border-color: var(--nc-border);
+}
+[data-theme="dark"] .markdown :deep(th) {
+  background: var(--nc-surface-2);
+}
+[data-theme="dark"] .pt-step b {
+  color: var(--nc-accent);
+}
+[data-theme="dark"] .pt-step.pt-risk b {
+  color: #f0a878;
+}
+[data-theme="dark"] .pt-tag-risk {
+  background: rgba(193, 89, 42, 0.18);
+  color: #f0a878;
+}
+[data-theme="dark"] .bubble .cites {
+  border-top-color: var(--nc-border);
+}
+[data-theme="dark"] .cite,
+[data-theme="dark"] .quick-reply {
+  color: var(--nc-accent);
+  background: var(--nc-accent-soft);
+  border-color: var(--nc-accent-border);
+}
+[data-theme="dark"] .quick-reply:hover:not(:disabled),
+[data-theme="dark"] .chart-tab.active,
+[data-theme="dark"] .cap-pill:hover {
+  background: var(--nc-accent);
+  color: var(--nc-on-accent);
+  border-color: var(--nc-accent);
+}
+[data-theme="dark"] .disclaimer {
+  background: rgba(251, 191, 36, 0.08);
+  border-color: rgba(251, 191, 36, 0.28);
+  color: #fcd34d;
+}
+[data-theme="dark"] .disclaimer-text b {
+  color: #fde68a;
+}
+[data-theme="dark"] .chart-tab {
+  color: var(--nc-text-muted);
+  background: var(--nc-surface);
+  border-color: var(--nc-border);
+}
+[data-theme="dark"] .chart-tab:hover {
+  border-color: var(--nc-accent);
+  color: var(--nc-accent);
+}
+[data-theme="dark"] .avatar-option {
+  background: var(--nc-surface-2);
+}
+[data-theme="dark"] .avatar-option.active {
+  background: var(--nc-accent-soft);
+  border-color: var(--nc-accent);
+}
+[data-theme="dark"] .composer-area {
+  background: linear-gradient(to top, var(--nc-composer-fade), var(--nc-composer-fade-0));
+}
+[data-theme="dark"] .composer :deep(.n-input) {
+  background: var(--nc-surface-2);
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.4);
+}
+[data-theme="dark"] .cap-pill {
+  color: var(--nc-accent);
+  background: var(--nc-surface-2);
+  border-color: var(--nc-accent-border);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+[data-theme="dark"] .reg-link {
+  color: var(--nc-accent);
+}
 </style>
