@@ -35,5 +35,6 @@ REACT_HINT = """请按 Thought → Action → Observation → Final Answer 推�
 - risk_screening_tool: 触发 NRS2002
 - meal_plan_tool: 生成 7 天方案
 - data_insight_tool: NL2SQL + 出图
-- bmi_calc / energy_target / recipe_gen / food_nutrition / disease_taboo
+- calculate_bmi: 由身高/体重算 BMI 与分级(见 nutritionist.tools)
+- estimate_daily_energy: 估算每日能量目标 + 三大营养素(见 nutritionist.tools)
 """
