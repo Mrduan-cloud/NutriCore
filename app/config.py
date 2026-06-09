@@ -52,6 +52,11 @@ class Settings(BaseSettings):
     reranker_model: str = "BAAI/bge-reranker-large"
     embedding_dim: int = 1024  # bge-large-zh = 1024
     model_cache_dir: str = "/app/.cache/models"
+    # RAG 精排提速旋钮(Cross-Encoder 在 CPU 上是首 token 前的主要阻塞):
+    # - rag_rerank_enabled=False → 跳过 Cross-Encoder,直接用 RRF 召回顺序,省最大一笔、首 token 更快(代价:相关性排序略糙)
+    # - rag_rerank_max_candidates → 送入 Cross-Encoder 的候选上限;CPU 耗时≈线性于候选数,砍小即提速,对最终 top_k 质量影响很小
+    rag_rerank_enabled: bool = True
+    rag_rerank_max_candidates: int = 8
 
     # ============ Milvus ============
     milvus_host: str = "milvus"

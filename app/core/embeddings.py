@@ -49,15 +49,32 @@ def embed_query(text: str) -> list[float]:
 
 
 def rerank(query: str, candidates: list[dict], top_k: int = 8) -> list[dict]:
-    """对 candidates 用 Cross-Encoder 精排，写入 rerank_score 并按其降序。"""
+    """对 candidates 用 Cross-Encoder 精排，写入 rerank_score 并按其降序。
+
+    提速旋钮(见 ``config.rag_rerank_*``,Cross-Encoder 在 CPU 上是首 token 前的主要阻塞):
+    - ``rag_rerank_enabled=False`` → 跳过 Cross-Encoder,直接走 RRF 召回顺序;
+    - 仅对前 ``rag_rerank_max_candidates`` 个候选打分(CPU 耗时≈线性于候选数)。
+    """
     if not candidates:
         return []
-    pairs = [(query, c["text"]) for c in candidates]
+    s = get_settings()
+    if not s.rag_rerank_enabled:
+        return _without_rerank(candidates, top_k)
+    cands = candidates[: max(1, s.rag_rerank_max_candidates)]
+    pairs = [(query, c["text"]) for c in cands]
     scores = _reranker().compute_score(pairs)
+    return _merge_rerank_scores(cands, scores, top_k)
+
+
+def _without_rerank(candidates: list[dict], top_k: int) -> list[dict]:
+    """精排关闭:用召回(RRF)顺序,补 rerank_score=rrf_score 以兼容下游阈值过滤。纯函数。"""
+    return [{**c, "rerank_score": float(c.get("rrf_score", 0.0))} for c in candidates[:top_k]]
+
+
+def _merge_rerank_scores(candidates: list[dict], scores, top_k: int) -> list[dict]:
+    """把 Cross-Encoder 分写回候选并按分降序截断 top_k。纯函数(给定 scores)。"""
     if isinstance(scores, float):
         scores = [scores]
-    out = []
-    for c, s in zip(candidates, scores, strict=True):
-        out.append({**c, "rerank_score": float(s)})
+    out = [{**c, "rerank_score": float(sc)} for c, sc in zip(candidates, scores, strict=True)]
     out.sort(key=lambda x: x["rerank_score"], reverse=True)
     return out[:top_k]
