@@ -48,6 +48,8 @@ const convStore = useConversationStore();
 
 const input = ref("");
 const loading = ref(false);
+// 当前流式请求的中断器:点「停止」时 abort,后端不再被空等、省 token/算力
+let abortCtrl: AbortController | null = null;
 const listRef = ref<HTMLElement | null>(null);
 
 // 头像:DiceBear,风格可切换(存 auth store / localStorage)
@@ -288,6 +290,7 @@ async function send(text?: string) {
   convStore.save();
   input.value = "";
   loading.value = true;
+  abortCtrl = new AbortController();
   scrollToBottom();
 
   try {
@@ -298,6 +301,7 @@ async function send(text?: string) {
         Authorization: `Bearer ${auth.token}`,
       },
       body: JSON.stringify({ message: content, session_id: conv.id, history }),
+      signal: abortCtrl.signal,
     });
     if (resp.status === 401) {
       auth.logout();
@@ -345,12 +349,23 @@ async function send(text?: string) {
     }
     if (!ai.content) ai.content = "（无回复）";
   } catch (e: any) {
-    ai.content = ai.content || "抱歉,服务暂时不可用:" + (e?.message || "未知错误");
+    if (e?.name === "AbortError") {
+      // 用户主动停止:保留已生成的部分,标注「已停止」
+      ai.content = ai.content ? ai.content + "\n\n（已停止生成）" : "（已停止生成）";
+    } else {
+      ai.content = ai.content || "抱歉,服务暂时不可用:" + (e?.message || "未知错误");
+    }
   } finally {
+    abortCtrl = null;
     convStore.save();
     loading.value = false;
     scrollToBottom();
   }
+}
+
+// 中断当前流式生成:abort 后 reader.read() 抛 AbortError,由 send() 的 catch/finally 收尾
+function stop() {
+  abortCtrl?.abort();
 }
 
 function onNewChat() {
@@ -724,7 +739,23 @@ function onLogout() {
             :disabled="loading"
             @keydown.enter.exact.prevent="send()"
           />
-          <n-button type="primary" size="large" :loading="loading" :disabled="!input.trim()" @click="send()">
+          <n-button
+            v-if="loading"
+            type="error"
+            size="large"
+            ghost
+            class="stop-btn"
+            @click="stop()"
+          >
+            ■ 停止
+          </n-button>
+          <n-button
+            v-else
+            type="primary"
+            size="large"
+            :disabled="!input.trim()"
+            @click="send()"
+          >
             发送
           </n-button>
         </footer>
