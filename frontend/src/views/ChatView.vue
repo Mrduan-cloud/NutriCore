@@ -576,8 +576,16 @@ function onLogout() {
               <span v-if="m.isHighRisk" class="pt-tag pt-tag-risk">高风险</span>
             </div>
             <template v-if="m.role === 'assistant'">
-              <div v-if="!m.content" class="thinking">
+              <!-- 「思考中」只在真正流式进行中(loading)且是最后一条时显示;
+                   否则空内容多为上次流式中断/页面关闭遗留的占位,显示「已中断」而非永久转圈。 -->
+              <div
+                v-if="!m.content && loading && i === messages.length - 1"
+                class="thinking"
+              >
                 <n-spin size="small" /> <span>营养师思考中…</span>
+              </div>
+              <div v-else-if="!m.content" class="thinking interrupted">
+                <span>（上次回复已中断,请重新提问)</span>
               </div>
               <div v-else class="text markdown" v-html="renderMarkdown(m.content)" />
             </template>
