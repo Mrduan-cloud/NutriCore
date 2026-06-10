@@ -142,9 +142,24 @@ export const useConversationStore = defineStore("conversations", () => {
     return [...list.value].sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
   }
 
+  // 自愈:清理历史里残留的「空内容 assistant 占位」。
+  // 这类占位是上次流式未完成(后端宕机 / 页面关闭 / 网络中断)时 send() 先 push、
+  // 后被持久化的半成品;渲染层据「内容为空」显示「思考中」,会变成永久假转圈。
+  // 进入聊天页时清掉,保证脏历史刷新即自愈(无需用户手动清 site data)。
+  function sanitize() {
+    let changed = false;
+    for (const c of list.value) {
+      const before = c.messages.length;
+      c.messages = c.messages.filter((m) => !(m.role === "assistant" && !m.content));
+      if (c.messages.length !== before) changed = true;
+    }
+    if (changed) persist(auth.userId, list.value);
+  }
+
   // 切换账号后重新载入当前用户的会话(在进入聊天页时调用)
   function reload() {
     list.value = load(auth.userId);
+    sanitize();
     activeId.value = list.value[0]?.id || "";
   }
 
