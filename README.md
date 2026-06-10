@@ -16,7 +16,7 @@
 <p align="center">
   <img src="docs/images/app-chat.png" alt="NutriCore · AI 营养师统一对话界面" width="860">
   <br/>
-  <sub>四个协作 Agent 的统一入口 · 一句话自动路由到对应子 Agent · 流式作答</sub>
+  <sub>四个协作 Agent 的统一入口 · 一句话自动路由到对应子 Agent · 逐 token 流式(可中断)· <code>intent_router → 子 Agent</code> 思路轨迹可视化 · 知识库「依据来源」标注 · 日/月主题切换</sub>
 </p>
 
 <table>
@@ -27,7 +27,7 @@
     </td>
     <td width="50%" align="center">
       <img src="docs/images/app-insight.png" alt="健康数据洞察 · ECharts 自动出图" width="100%"><br/>
-      <sub>健康数据洞察 · NL2SQL → 四段式解读 + ECharts 自动出图</sub>
+      <sub>健康数据洞察 · NL2SQL → 四段式解读 + ECharts 多图(折线/环形/雷达/柱)</sub>
     </td>
   </tr>
 </table>
