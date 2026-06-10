@@ -18,6 +18,9 @@ export interface ChatMessage {
   quickReplies?: string[];
   // 用户对这条回复的反馈(👍/👎),持久化后下次回看仍亮起
   rating?: "up" | "down";
+  // 本条是错误兜底(服务不可用 / 网络异常):不挂「依据来源」「AI 生成内容」免责,
+  // 渲染为弱化的错误样式,引导「重新生成」。
+  error?: boolean;
 }
 
 export interface Conversation {
