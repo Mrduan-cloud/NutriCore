@@ -343,7 +343,11 @@ async function send(text?: string) {
           ai.chartType = ai.charts && ai.charts.length ? ai.charts[0].type : "";
           ai.quickReplies = p.quick_replies || [];
         } else if (p.type === "error") {
-          ai.content += (ai.content ? "\n\n" : "") + p.message;
+          // 技术细节(如 APIConnectionError)留给控制台;界面给友好兜底文案
+          console.warn("stream error:", p.message);
+          ai.error = true;
+          const note = "服务暂时不可用,请点下方「重新生成」重试。";
+          ai.content = ai.content ? ai.content + "\n\n" + note : note;
         }
       }
     }
@@ -353,7 +357,9 @@ async function send(text?: string) {
       // 用户主动停止:保留已生成的部分,标注「已停止」
       ai.content = ai.content ? ai.content + "\n\n（已停止生成）" : "（已停止生成）";
     } else {
-      ai.content = ai.content || "抱歉,服务暂时不可用:" + (e?.message || "未知错误");
+      console.warn("send failed:", e?.message);
+      ai.error = true;
+      ai.content = ai.content || "网络异常,请点下方「重新生成」重试。";
     }
   } finally {
     abortCtrl = null;
@@ -587,7 +593,12 @@ function onLogout() {
               <div v-else-if="!m.content" class="thinking interrupted">
                 <span>（上次回复已中断,请重新提问)</span>
               </div>
-              <div v-else class="text markdown" v-html="renderMarkdown(m.content)" />
+              <div
+                v-else
+                class="text markdown"
+                :class="{ 'is-error': m.error }"
+                v-html="renderMarkdown(m.content)"
+              />
             </template>
             <div v-else class="text">{{ m.content }}</div>
             <!-- 数据洞察:ECharts 图表(可切换 折线/柱/环形/雷达) -->
@@ -609,7 +620,7 @@ function onLogout() {
               </div>
               <echart-block :option="activeChart(m)" />
             </div>
-            <div v-if="m.citations && m.citations.length" class="cites">
+            <div v-if="m.citations && m.citations.length && !m.error" class="cites">
               <span class="cites-label">
                 <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
@@ -619,11 +630,13 @@ function onLogout() {
               </span>
               <span v-for="c in prettyCitations(m.citations)" :key="c" class="cite">{{ c }}</span>
             </div>
-            <!-- 无知识库引用、非图表洞察、非筛查流程的回答 = 通用 LLM 生成,加免责声明 -->
+            <!-- 无知识库引用、非图表洞察、非筛查流程的回答 = 通用 LLM 生成,加免责声明。
+                 关键:流式进行中(最后一条 + loading)先不显示 —— 引用只在 done 才回传,
+                 否则会先断言「未匹配知识库依据」再被随后到达的「依据来源」打脸。等生成完再二选一。 -->
             <div
               v-else-if="
                 m.role === 'assistant' && m.content && !m.isHighRisk && !m.chart &&
-                m.intent !== 'screening'
+                m.intent !== 'screening' && !(loading && i === messages.length - 1)
               "
               class="disclaimer"
             >
@@ -1061,7 +1074,7 @@ function onLogout() {
   /* 全宽滚动容器 → 滚动条贴在窗口最右,而非居中阅读列的右缘 */
   width: 100%;
   /* 底部留白:给悬浮输入区让位,最后一条消息能滚到其上方 */
-  padding: 28px 0 132px;
+  padding: 36px 0 140px;
 }
 /* Claude / ChatGPT 式居中阅读列:滚动在外层(全宽)、内容在内层居中,
    两侧对称留白;滚动条因此落在窗口右缘而非半空中。 */
@@ -1227,15 +1240,15 @@ function onLogout() {
 
 .row {
   display: flex;
-  gap: 11px;
-  margin-bottom: 14px;
+  gap: 12px;
+  margin-bottom: 20px;
   align-items: flex-start;
   animation: bubble-in 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 /* 一个「turn」 = 用户问 + AI 答;turn 之间(=下一条 user)再加大间距,
    视觉上明确分组,避免上一段答案的动作栏与下一段提问粘在一起。 */
 .row + .row.user {
-  margin-top: 28px;
+  margin-top: 44px;
 }
 @keyframes bubble-in {
   from {
@@ -1257,7 +1270,7 @@ function onLogout() {
 .bubble {
   position: relative;
   max-width: 78%;
-  padding: 14px 20px;
+  padding: 16px 22px;
   border-radius: 16px;
   /* Perplexity 风格正文:更大字号 + 更舒展行高 */
   line-height: 1.78;
@@ -1293,7 +1306,7 @@ function onLogout() {
 .msg-actions {
   display: flex;
   gap: 4px;
-  margin-top: 14px;
+  margin-top: 20px;
   padding-top: 6px;
 }
 .msg-action {
@@ -1424,19 +1437,19 @@ function onLogout() {
   font-size: 16.5px;
   font-weight: 700;
   /* 每天之间留更大间距,分组更清晰(Perplexity 那种段落呼吸感) */
-  margin: 18px 0 8px;
+  margin: 24px 0 11px;
   color: #14403f;
 }
 .markdown :deep(p) {
-  margin: 8px 0;
+  margin: 11px 0;
 }
 .markdown :deep(ul),
 .markdown :deep(ol) {
-  margin: 6px 0;
+  margin: 10px 0;
   padding-left: 22px;
 }
 .markdown :deep(li) {
-  margin: 5px 0;
+  margin: 8px 0;
   line-height: 1.72;
 }
 .markdown :deep(li > p) {
@@ -1538,9 +1551,18 @@ function onLogout() {
   opacity: 1;
 }
 
+/* 错误兜底:弱化为柔和警示色 + 略小字号,不抢正文,引导「重新生成」 */
+.text.is-error {
+  color: #b04a3f;
+  font-size: 14.5px;
+}
+[data-theme="dark"] .text.is-error {
+  color: #f0a79e;
+}
+
 .bubble .cites {
-  margin-top: 12px;
-  padding-top: 10px;
+  margin-top: 18px;
+  padding-top: 14px;
   border-top: 1px dashed #e5e7eb;
   display: flex;
   flex-wrap: wrap;
@@ -1563,11 +1585,11 @@ function onLogout() {
   padding: 2px 8px;
 }
 .disclaimer {
-  margin-top: 12px;
+  margin-top: 18px;
   display: flex;
   align-items: flex-start;
   gap: 7px;
-  padding: 8px 11px;
+  padding: 10px 13px;
   background: #fffaf0;
   border: 1px solid #ffe6b0;
   border-radius: 9px;
@@ -1588,7 +1610,7 @@ function onLogout() {
 
 /* 风险筛查快捷选项 / 数据洞察示例问题 */
 .quick-replies {
-  margin-top: 12px;
+  margin-top: 18px;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
