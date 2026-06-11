@@ -35,14 +35,19 @@ _SYSTEM = """你是 NutriCore 营养方案生成器。你必须严格输出 JSON
 
 
 def _estimate_target_kcal(profile: dict[str, Any]) -> float:
-    """简易 Mifflin-St Jeor TDEE 估算 — 缺失字段时给默认。"""
+    """简易 Mifflin-St Jeor TDEE 估算 — 缺失字段时给默认。
+
+    BMR 复用 nutritionist.tools 的 canonical 实现(raw 不取整版:先乘活动系数
+    再统一取整,与历史行为逐位一致)。函数级 import 避免包初始化环。
+    """
+    from app.agents.nutritionist.tools import mifflin_st_jeor_bmr_raw
+
     g = (profile.get("gender") or "female").lower()
     age = int(profile.get("age") or 30)
     h = float(profile.get("height_cm") or 165)
     w = float(profile.get("weight_kg") or 60)
     activity = 1.4
-    bmr = 10 * w + 6.25 * h - 5 * age + (5 if g == "male" else -161)
-    return round(bmr * activity)
+    return round(mifflin_st_jeor_bmr_raw(g, age, h, w) * activity)
 
 
 def _safe_json(raw: str) -> dict:

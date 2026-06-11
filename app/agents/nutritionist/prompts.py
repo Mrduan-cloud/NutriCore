@@ -31,10 +31,6 @@ INTENT_PROMPT = """请判断用户消息属于哪类意图，只输出 JSON：{{
 
 只输出 JSON 对象。"""
 
-REACT_HINT = """请按 Thought → Action → Observation → Final Answer 推理，可调用工具：
-- risk_screening_tool: 触发 NRS2002
-- meal_plan_tool: 生成 7 天方案
-- data_insight_tool: NL2SQL + 出图
-- calculate_bmi: 由身高/体重算 BMI 与分级(见 nutritionist.tools)
-- estimate_daily_energy: 估算每日能量目标 + 三大营养素(见 nutritionist.tools)
-"""
+# (原 REACT_HINT 已删除:定义后从未被引用,且其描述的 ReAct 工具调用方式
+#  与实际架构不符 —— BMI/能量工具经 tools.consult_tool_context 以确定性前置
+#  计算接入 consult,子 Agent 由 LangGraph 路由派发,不走 ReAct 文本协议。)

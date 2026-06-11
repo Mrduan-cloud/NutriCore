@@ -18,6 +18,8 @@
 """
 from __future__ import annotations
 
+import re
+
 from langchain_core.tools import tool
 
 # ============ 常量 ============
@@ -88,16 +90,23 @@ def bmi_report(height_cm: float, weight_kg: float) -> dict:
     return {"bmi": bmi, "category": bmi_category(bmi), "healthy_weight_kg": [low, high]}
 
 
-def mifflin_st_jeor_bmr(gender: str, age: int, height_cm: float, weight_kg: float) -> int:
-    """基础代谢率 BMR(Mifflin-St Jeor)。
+def mifflin_st_jeor_bmr_raw(gender: str, age: int, height_cm: float, weight_kg: float) -> float:
+    """基础代谢率 BMR(Mifflin-St Jeor),**不取整**的原始值。
 
     男:10·w + 6.25·h − 5·age + 5;女:同式末项 −161。年龄/身高/体重须为正。
+    供需要在后续乘法(活动系数等)之后才统一取整的调用方(如 meal_plan 的
+    每日热量估算)复用,避免中途取整引入 ±1 kcal 漂移。
     """
     a, h, w = int(age), float(height_cm), float(weight_kg)
     if a <= 0 or h <= 0 or w <= 0:
         raise ValueError("年龄、身高、体重必须为正数")
     sex_const = 5 if str(gender).strip().lower() in ("male", "m", "男") else -161
-    return round(10 * w + 6.25 * h - 5 * a + sex_const)
+    return 10 * w + 6.25 * h - 5 * a + sex_const
+
+
+def mifflin_st_jeor_bmr(gender: str, age: int, height_cm: float, weight_kg: float) -> int:
+    """基础代谢率 BMR(Mifflin-St Jeor),取整到 kcal。"""
+    return round(mifflin_st_jeor_bmr_raw(gender, age, height_cm, weight_kg))
 
 
 def _macro_grams(kcal: float) -> dict[str, int]:
@@ -195,6 +204,89 @@ def estimate_daily_energy(
     )
 
 
+# ============ consult 链路的确定性前置计算 ============
+# LLM 心算 BMI / 热量容易出错(数值幻觉)。consult 在组 prompt 前先用本地纯函数
+# 算出确定性结果注入上下文,LLM 只负责解读与建议、不再做算术。
+# 触发词刻意保守:只在用户明确问"BMI / 热量目标"这类可计算问题时注入。
+_BMI_TRIGGERS = (
+    "bmi", "体重指数", "胖不胖", "算不算胖", "体重正常", "标准体重", "体重达标",
+)
+_ENERGY_TRIGGERS = (
+    "热量", "卡路里", "kcal", "大卡", "能量目标", "基础代谢", "bmr", "tdee",
+    "每天吃多少", "每日摄入",
+)
+# 消息里直接给的数字优先于画像(用户现场报的身高体重最新)
+_HEIGHT_RE = re.compile(r"(\d{2,3}(?:\.\d+)?)\s*(?:cm|厘米|公分)", re.IGNORECASE)
+_WEIGHT_RE = re.compile(r"(\d{2,3}(?:\.\d+)?)\s*(?:kg|公斤|千克)", re.IGNORECASE)
+_AGE_RE = re.compile(r"(\d{1,3})\s*岁")
+
+
+def _first_number(pattern: re.Pattern, text: str) -> float | None:
+    m = pattern.search(text or "")
+    if not m:
+        return None
+    try:
+        return float(m.group(1))
+    except ValueError:
+        return None
+
+
+def _goal_from_query(query: str) -> str:
+    for alias, goal in _GOAL_ALIASES.items():
+        if alias in query:
+            return goal
+    return "maintain"
+
+
+def consult_tool_context(query: str, profile: dict | None) -> str:
+    """为 consult 生成「本地工具确定性计算」上下文段。纯函数。
+
+    命中 BMI / 能量触发词且字段齐备时,返回一段中文计算结果(供注入 prompt,
+    LLM 直接采用数值);未命中或字段不足时返回 ``""``(consult 行为不变)。
+    身高/体重/年龄优先取消息里现场给的数字,缺了再回退画像。
+    """
+    q = (query or "").lower()
+    wants_bmi = any(t in q for t in _BMI_TRIGGERS)
+    wants_energy = any(t in q for t in _ENERGY_TRIGGERS)
+    if not (wants_bmi or wants_energy):
+        return ""
+
+    p = profile or {}
+    height = _first_number(_HEIGHT_RE, query) or p.get("height_cm")
+    weight = _first_number(_WEIGHT_RE, query) or p.get("weight_kg")
+
+    parts: list[str] = []
+    if (wants_bmi or wants_energy) and height and weight:
+        try:
+            r = bmi_report(height, weight)
+            low, high = r["healthy_weight_kg"]
+            parts.append(
+                f"BMI {r['bmi']}({r['category']}),该身高健康体重区间 {low}–{high} kg"
+            )
+        except (ValueError, TypeError):
+            pass
+    if wants_energy and height and weight:
+        age = _first_number(_AGE_RE, query) or p.get("age")
+        gender = p.get("gender")
+        if age and gender:
+            try:
+                e = daily_energy_target(
+                    gender, int(age), height, weight, goal=_goal_from_query(q)
+                )
+                m = e["macros_g"]
+                parts.append(
+                    f"每日能量目标约 {e['target_kcal']} kcal"
+                    f"({_GOAL_CN[e['goal']]},按中度活动估算;"
+                    f"BMR {e['bmr_kcal']} / TDEE {e['tdee_kcal']} kcal),"
+                    f"三大营养素参考:碳水 {m['carb']}g / 蛋白质 {m['protein']}g / 脂肪 {m['fat']}g"
+                )
+            except (ValueError, TypeError):
+                pass
+    if not parts:
+        return ""
+    return "本地工具确定性计算(数值请直接采用,不要自行心算):" + ";".join(parts) + "。"
+
+
 # 供后续 ``llm.bind_tools(NUTRITIONIST_TOOLS)`` 一次性绑定
 NUTRITIONIST_TOOLS = [calculate_bmi, estimate_daily_energy]
 
@@ -204,8 +296,10 @@ __all__ = [
     "bmi_report",
     "calculate_bmi",
     "compute_bmi",
+    "consult_tool_context",
     "daily_energy_target",
     "estimate_daily_energy",
     "healthy_weight_range_kg",
     "mifflin_st_jeor_bmr",
+    "mifflin_st_jeor_bmr_raw",
 ]

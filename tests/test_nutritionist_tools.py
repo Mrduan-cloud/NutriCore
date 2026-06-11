@@ -13,10 +13,12 @@ from app.agents.nutritionist.tools import (
     bmi_report,
     calculate_bmi,
     compute_bmi,
+    consult_tool_context,
     daily_energy_target,
     estimate_daily_energy,
     healthy_weight_range_kg,
     mifflin_st_jeor_bmr,
+    mifflin_st_jeor_bmr_raw,
 )
 
 
@@ -157,3 +159,70 @@ def test_tool_invalid_input_is_friendly_not_raised():
     assert "无法估算" in estimate_daily_energy.invoke(
         {"gender": "male", "age": -1, "height_cm": 175, "weight_kg": 70}
     )
+
+
+# ---------- mifflin_st_jeor_bmr_raw(canonical 不取整版) ----------
+def test_bmr_raw_identity_with_rounded():
+    # round(raw) 必须与取整版逐位一致(raw 是唯一公式来源)
+    for gender, age, h, w in [("male", 30, 175, 70), ("female", 28, 165, 58),
+                              ("男", 45, 180, 85), ("female", 60, 150, 45)]:
+        assert round(mifflin_st_jeor_bmr_raw(gender, age, h, w)) == \
+            mifflin_st_jeor_bmr(gender, age, h, w)
+    # raw 保留小数(30 岁 175cm 70kg 男:1648.75)
+    assert mifflin_st_jeor_bmr_raw("male", 30, 175, 70) == pytest.approx(1648.75)
+
+
+def test_meal_plan_estimator_numeric_identity():
+    """meal_plan 去重后的热量估算必须与历史公式逐位一致(防 ±1 kcal 漂移)。"""
+    from app.agents.meal_plan.generator import _estimate_target_kcal
+
+    profiles = [
+        {},  # 全默认:female/30/165/60
+        {"gender": "male", "age": 30, "height_cm": 175, "weight_kg": 70},
+        {"gender": "female", "age": 28, "height_cm": 165, "weight_kg": 58},
+        {"gender": "male", "age": 51, "height_cm": 172, "weight_kg": 81.5},
+    ]
+    for p in profiles:
+        g = (p.get("gender") or "female").lower()
+        age = int(p.get("age") or 30)
+        h = float(p.get("height_cm") or 165)
+        w = float(p.get("weight_kg") or 60)
+        legacy = round((10 * w + 6.25 * h - 5 * age + (5 if g == "male" else -161)) * 1.4)
+        assert _estimate_target_kcal(p) == legacy
+
+
+# ---------- consult_tool_context(确定性前置计算注入) ----------
+_PROFILE = {"gender": "male", "age": 30, "height_cm": 175, "weight_kg": 70}
+
+
+def test_consult_ctx_no_trigger_returns_empty():
+    assert consult_tool_context("低 GI 的主食有哪些推荐?", _PROFILE) == ""
+    assert consult_tool_context("帮我做营养筛查", _PROFILE) == ""
+
+
+def test_consult_ctx_bmi_from_profile():
+    out = consult_tool_context("我的 BMI 正常吗?", _PROFILE)
+    assert "BMI 22.9" in out and "健康体重区间" in out
+    assert "不要自行心算" in out
+
+
+def test_consult_ctx_message_numbers_override_profile():
+    # 现场报的 165cm/80kg 必须压过画像里的 175/70
+    out = consult_tool_context("我165cm 80kg,算不算胖?", _PROFILE)
+    assert "BMI 29.4" in out and "肥胖" in out
+
+
+def test_consult_ctx_energy_full_fields():
+    out = consult_tool_context("我减脂期每天吃多少热量合适?", _PROFILE)
+    assert "每日能量目标" in out and "减脂" in out and "BMR" in out
+
+
+def test_consult_ctx_energy_missing_gender_degrades_to_bmi_only():
+    p = {"height_cm": 165, "weight_kg": 60}  # 无 gender/age → 能量段出不来
+    out = consult_tool_context("我每天需要多少卡路里?", p)
+    assert "BMI" in out and "每日能量目标" not in out
+
+
+def test_consult_ctx_no_fields_returns_empty():
+    assert consult_tool_context("我的 BMI 是多少?", {}) == ""
+    assert consult_tool_context("我的 BMI 是多少?", None) == ""
