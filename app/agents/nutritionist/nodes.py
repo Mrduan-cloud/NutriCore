@@ -470,15 +470,23 @@ async def consult_rag_context(query: str, top_k: int = 3) -> tuple[str, list[str
 
 
 async def build_consult_prompt(query: str, profile: dict[str, Any]) -> tuple[str, list[str]]:
-    """构建 consult 的用户 prompt + 返回真实引用(供同步节点与流式端点共用)。"""
+    """构建 consult 的用户 prompt + 返回真实引用(供同步节点与流式端点共用)。
+
+    BMI / 热量类可计算问题先用本地纯函数算出确定性结果注入(LLM 心算数值
+    容易错);未触发时该段为空,行为与之前完全一致。
+    """
+    from app.agents.nutritionist.tools import consult_tool_context
+
     evidence, citations = await consult_rag_context(query)
     profile_ctx = _format_profile(profile)
+    tool_ctx = consult_tool_context(query, profile)
     ref = evidence or "(知识库无直接匹配,可基于通用营养学回答)"
     prompt = (
         f"用户画像:{profile_ctx}\n\n"
-        f"知识库参考:\n{ref}\n\n"
-        f"用户问题:{query}\n\n"
-        "请基于知识库参考与画像精炼作答(250 字内,先结论再要点)。"
+        + (f"{tool_ctx}\n\n" if tool_ctx else "")
+        + f"知识库参考:\n{ref}\n\n"
+        + f"用户问题:{query}\n\n"
+        + "请基于知识库参考与画像精炼作答(250 字内,先结论再要点)。"
     )
     return prompt, citations
 
