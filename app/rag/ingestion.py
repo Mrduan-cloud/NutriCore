@@ -14,7 +14,7 @@ from pathlib import Path
 
 from loguru import logger
 
-from app.clients.milvus import upsert_chunks
+from app.clients.milvus import drop_collection, upsert_chunks
 from app.config import get_settings
 from app.core.embeddings import embed_texts
 
@@ -88,8 +88,15 @@ async def embed_and_upsert(chunks: Iterable[Chunk], collection: str) -> int:
     return n
 
 
-async def ingest_markdown_dir(source_dir: str | Path, collection: str, base_metadata: dict | None = None) -> int:
-    """把目录里所有 .md 文件解析切分 + 向量化入库，并同时写一份 jsonl 给 BM25 用。"""
+async def ingest_markdown_dir(source_dir: str | Path, collection: str,
+                              base_metadata: dict | None = None,
+                              recreate: bool = True) -> int:
+    """把目录里所有 .md 文件解析切分 + 向量化入库，并同时写一份 jsonl 给 BM25 用。
+
+    ``recreate=True``（默认）：灌库前先 drop collection —— schema 主键 auto_id、
+    insert 无去重，反复灌会堆积重复 chunk 污染检索（实测 dietary_guide_kb 灌成
+    26 行而单次应 ~13）。重建保证灌库幂等。
+    """
     source = Path(source_dir)
     if not source.exists():
         raise FileNotFoundError(source)
@@ -100,6 +107,8 @@ async def ingest_markdown_dir(source_dir: str | Path, collection: str, base_meta
         md = {"path": rel, **(base_metadata or {})}
         all_chunks.extend(split_document(doc_id=p.stem, content=p.read_text(encoding="utf-8"), base_metadata=md))
 
+    if recreate:
+        drop_collection(collection)
     n = await embed_and_upsert(all_chunks, collection)
 
     # 同步写一份 BM25 倒排索引源数据
