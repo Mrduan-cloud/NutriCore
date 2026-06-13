@@ -119,4 +119,10 @@ async def ingest_markdown_dir(source_dir: str | Path, collection: str,
         for c in all_chunks:
             f.write(json.dumps(asdict(c), ensure_ascii=False) + "\n")
     logger.info("wrote BM25 source jsonl for {}", collection)
+
+    # 失效 BM25 内存索引缓存(@lru_cache):否则同一长驻进程在本次重灌后,BM25 仍用
+    # 旧 jsonl 而向量库已是新数据 → 混检。仅清本进程缓存;跨进程(CLI seed → 运行中
+    # 的 server)的陈旧需重启 server 才能消除。
+    from app.rag.bm25 import reload_indices
+    reload_indices()
     return n
