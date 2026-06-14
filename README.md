@@ -53,35 +53,43 @@
 | **AI 营养师 Agent**         | LangGraph 主控状态机 · ReAct 推理 · 多轮记忆 · 子 Agent 路由 · 高风险兜底                              |
 | **营养风险筛查 Agent**      | NRS2002 评分算法 · 断点续答 · 异常实时拦截 · PDF 风险报告 · 评测看板                                   |
 | **个性化营养方案 Agent**    | BM25 + BGE 混合检索 · RRF 融合 · Cross-Encoder 精排 · 7 天方案生成 · 引用强约束校验                    |
-| **健康数据洞察 Agent**      | Vanna.ai NL2SQL · Dify 可视化编排 · ECharts 自动出图 · 三层数据隔离 · 四段式洞察报告                   |
+| **健康数据洞察 Agent**      | LLM 直出 NL2SQL + 三层隔离审计 · Dify 可视化编排 · ECharts 自动出图 · 四段式洞察报告                   |
 
 ---
 
 ## 系统架构 | Architecture
 
-```
-                ┌─────────────────────────────────────────────────────────┐
-                │                  FastAPI Gateway (API)                  │
-                └────────────────────────┬────────────────────────────────┘
-                                         │
-                ┌────────────────────────▼────────────────────────────────┐
-                │             AI 营养师 Agent (LangGraph)                │
-                │   意图识别 → 子 Agent 路由 → 工具调用 → 引用核验       │
-                └──┬──────────────┬───────────────┬─────────────────┬─────┘
-                   │              │               │                 │
-            ┌──────▼─────┐ ┌──────▼─────┐ ┌──────▼──────┐  ┌───────▼────────┐
-            │ 营养风险   │ │ 个性化营养 │ │ 健康数据    │  │ Function Calling│
-            │ 筛查 Agent │ │ 方案 Agent │ │ 洞察 Agent  │  │ 工具集          │
-            │ (NRS2002)  │ │ (RAG+PDF)  │ │ (NL2SQL)    │  │ BMI/能量/食谱.. │
-            └──────┬─────┘ └──────┬─────┘ └──────┬──────┘  └────────────────┘
-                   │              │              │
-            ┌──────▼──────────────▼──────────────▼─────────────────────────┐
-            │   Milvus (向量)  ·  MySQL (画像 / 业务)  ·  Redis (缓存)     │
-            │   MinIO (PDF / 报告)  ·  vLLM (本地化大模型)                │
-            └──────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    U["用户 · Vue3 演示前端"] -->|"SSE 流式 · 可中断"| GW["FastAPI Gateway<br/>/chat · /screening · /plan · /insight"]
+    GW --> MAIN
+
+    subgraph MAIN["① AI 营养师 Agent · LangGraph 主控状态机"]
+        direction TB
+        R["意图识别 → 子 Agent 路由"] --> FC["Function Calling 工具集<br/>BMI · 能量 · 食谱 · 禁忌"]
+        FC --> V["引用核验 · 高风险兜底（建议就医）"]
+        MEM[("多轮记忆 / 用户画像<br/>实体抽取沉淀")] -.-> R
+    end
+
+    MAIN -->|StructuredTool| A1["② 营养风险筛查 Agent<br/>NRS2002 · 断点续答 · PDF 报告"]
+    MAIN -->|StructuredTool| A2["③ 个性化营养方案 Agent<br/>混合检索 + RRF + 精排 · 引用接地"]
+    MAIN -->|StructuredTool| A3["④ 健康数据洞察 Agent<br/>NL2SQL 三层隔离 · ECharts 出图"]
+
+    A1 --> DATA
+    A2 --> DATA
+    A3 --> DATA
+
+    subgraph DATA["数据 / 模型层"]
+        direction LR
+        MV[("Milvus<br/>向量")]
+        MY[("MySQL<br/>画像 / 业务")]
+        RD[("Redis<br/>会话缓存")]
+        MN[("MinIO<br/>PDF / 报告")]
+        LLM["本地化 LLM<br/>vLLM / Ollama · BGE Embed / Rerank"]
+    end
 ```
 
-详细架构图见 [`docs/architecture.md`](docs/architecture.md)。
+> 4 个 Agent：**①AI 营养师**（LangGraph 主控，统一入口 + ReAct 调度）协调 **②筛查 / ③方案 / ④洞察** 三个子 Agent（以 `StructuredTool` 形式被主 Agent 调用）。文字版详细架构见 [`docs/architecture.md`](docs/architecture.md)。
 
 ---
 
@@ -90,7 +98,7 @@
 - **Agent 框架**：LangGraph (主控编排) · LangChain (工具封装与 ReAct) · Dify (数据洞察可视化编排)
 - **大模型**：vLLM 私有化部署 · BGE Embedding · BGE Reranker (Cross-Encoder)
 - **检索 / 知识库**：Milvus (向量) + BM25 关键词召回 + RRF 融合 + Cross-Encoder 精排
-- **NL2SQL**：Vanna.ai
+- **NL2SQL**：LLM 直出 SQL + 三层安全收口（SELECT-only / 表+字段白名单 / user_id 强制过滤）；生产可平替为 Vanna.ai（向量库训练版）走同一组校验
 - **后端 / API**：FastAPI · Pydantic · Tortoise-ORM · 异步任务
 - **数据 / 存储**：MySQL · Redis · MinIO
 - **可视化**：ECharts (服务端渲染)
@@ -121,7 +129,7 @@ NutriCore/
 │   │   │   ├── validator.py    # Pydantic + JSONSchema 双层校验
 │   │   │   └── pdf_export.py
 │   │   └── data_insight/       # 健康数据洞察
-│   │       ├── nl2sql.py       # Vanna.ai
+│   │       ├── nl2sql.py       # LLM 直出 SQL + 三层隔离收口 (assert_safe_sql)
 │   │       ├── dify_client.py  # Dify Workflow API
 │   │       └── echarts.py
 │   ├── tools/                  # Function Calling 工具集
@@ -206,7 +214,13 @@ docker compose exec api python -m scripts.demo         # 跑端到端 demo
 
 ### 5. 数据隔离（Data Insight Agent）
 
-`user_id 强制过滤 + 字段白名单 + SELECT-only` 三层防护，确保用户仅能查询自身数据。
+LLM 直出的 SQL 一律先过 `assert_safe_sql` 三层收口，确保用户**只能查到自己的数据**：
+
+- **SELECT-only**：单条单 `SELECT`，禁子查询 / `UNION` / 注释 / 写库 / DDL；函数须在白名单内（封掉 `SLEEP`/`LOAD_FILE` 等注入函数）。
+- **表 + 字段白名单**：逐标识符校验，只放行授权表的授权列，禁裸 `SELECT *`。
+- **user_id 强制过滤**：`WHERE` 必须按**当前登录用户本人** id 过滤；禁 `OR`，堵死 `... user_id='我' OR 1=1` 整段绕过。
+
+> 这三层都有[逐向量回归测试](tests/test_nl2sql_safety.py)守护（每条用例对应一个曾可绕过的真实越权 / 注入路径）。
 
 ---
 
