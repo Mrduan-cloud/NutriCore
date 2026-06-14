@@ -36,3 +36,40 @@
 5. **plan 与现实的张力是常态**：机会主义插队（demo 冲刺）是对的，但要记得归位 + 如实复盘，别让主线断档。
 
 ---
+
+## W05 · 2026-06-22 → 2026-06-28 · 主项目（NutriCore 已建能力固化）
+
+> 对应简历：「AI 营养师 Agent」全栈四能力——本周把 demo 冲刺期**建好但没测/没文档**的能力补成测试 + 文档 + 缺口闭合。
+> 本周角色：NutriCore 当主项目（6/22 / 6/24 / 6/26 / 6/27），MediRead / MemoMate 周二 / 周四轮值。
+> 主题：让「能跑的 demo」变成「能背书简历、面试敢逐个 demo」。完成驱动，本节按 plan 标称日期归档。
+
+### 这周做了什么
+
+| 日期 | 项目 · PR | 内容 |
+|---|---|---|
+| 6/22 | NutriCore `#27` | meal_plan **生成端到端 + 引用接地**：`test_meal_plan_generator`（monkeypatch retrieve+LLM，证据引用必带 KB 来源、无依据即拒）进 CI；`test_meal_plan_e2e_live` 容器内实跑 7 天方案 / 74 条引用全接地。顺手让 generator 复用 `mifflin_st_jeor_bmr_raw`，消掉一处 BMR 估算重复 |
+| 6/23 | MediRead `#25` | **指标别名归一化**（轮值）：`_norm_key`（NFKC + casefold + 连字符统一）+ `aliases_for` 双向查；`synonyms.json` 由 ~27 扩到 ~50（中文旧称 ↔ 标准名，GGT ↔ γ-谷氨酰转移酶），脏 OCR 鲁棒 |
+| 6/24 | NutriCore `#28` | risk_screening **PDF 渲染 + MinIO 归档核验**（补 W04 缺口）：`render_pdf(NRSReport)→bytes` 与 MinIO **解耦**——纯渲染（中文字体 / 三档配色分支）进 CI，`archive_report → presigned_url` 往返作 skip-guard live 测试；容器内实测 3683B PDF 往返 |
+| 6/25 | MemoMate `#14`(+`#15`) | **github_trending** server（轮值）：stdlib 零依赖爬 github.com/trending，`get_github_trending(language, since, limit)`，稳定锚点解析 + `_RateLimiter`；实网验证 Python 周榜 top-3 解析正确。`#15` 回填两份 README 服务索引、删陈旧 weather 行 |
+| 6/26 | NutriCore `#29` | data_insight **NL2SQL 三层隔离审计 + 加固**：审计 `assert_safe_sql` 挖出 3 处真口子并修——① 字段白名单是**死代码**(`ALLOWED_FIELDS` 从未被用) → 改逐标识符校验、禁裸 `SELECT *`；② `... user_id='我' OR 1=1` 整段绕过强制过滤 → 禁 `OR`、过滤改正则锚到本人 id；③ `UNION SELECT … user_id='他人'` 跨用户读 → 禁 UNION/子查询/注释/危险函数。测试 5 → 30 条，按 Layer1/2/3 分组 |
+| 6/27 | NutriCore `#30` | docs：4-Agent 架构图 ASCII → **Mermaid**（GitHub 原生渲染，标清主控 + 三子 Agent 拓扑）；特性清单**对齐真实实现**——NL2SQL 改如实表述（无 Vanna 依赖，标为生产可平替）、数据隔离要点扩写为审计级三层收口 |
+
+### 现状
+
+- ✅ 四大能力全部「固化」：筛查（NRS2002 + PDF 往返核验）、方案（RAG e2e + 引用接地）、洞察（NL2SQL 三层隔离审计级加固）、主控（W01 已固化）——每条都有 CI 纯逻辑测试 + skip-guard live 双层守护。
+- ✅ NutriCore README 与代码不再有口径差（Vanna 过度声称已纠正），4-Agent 架构图可在 GitHub 直接看图。
+- 🟡 跟进任务仍挂着：medical_kb 上 Cross-Encoder 负增益待 KB 规模化复评（W04 起的 background task）。
+- 🟡 W02 retro 三仓仍缺（非阻塞，补则补在当周主项目仓）。
+
+### 收获
+
+1. **「补测」常常就是「补 bug」**：6/26 名义是给 `test_nl2sql_safety` 补强,认真重读实现才发现字段白名单是死代码、还有两条跨用户泄露路径。和 W04「灌完库必须复验」一个道理——**写测试/文档的过程本身就是最便宜的代码审计**,真去读才看得见。
+2. **安全设计敢于「收窄」**：单用户分析查询本就不需要 `OR` / 子查询 / `UNION`,放开任何一个都是越权口子。与其用解析器追求「什么都支持还安全」,不如 fail-closed 砍掉用不到的能力——这个取舍写进了代码注释和文档,面试能讲清「为什么禁 OR」。
+3. **文档诚实化是固化的一部分**：README 把 NL2SQL 写成「Vanna.ai」,但 `requirements.txt` 根本没这依赖。延续 W01「简历真实性 > 丰满度」、W04「诚实负结果 > 假增益」——把口径拉回实现,Vanna 标成生产平替路径,interviewer 深扒也站得住。
+4. **解耦让重能力也能进 CI**：`render_pdf` 与 MinIO 拆开后,纯渲染（字体/配色/拼装）能在 CI 跑,真往返留给 live。和 W04 的评测分层同一套打法——重依赖不是「测不了」的借口。
+
+### 下周预告 · W06（06/29–07/05）· MemoMate servers 扩充
+
+主项目切到 **MemoMate**：`hackernews` / `wechat_mp`(httpx + selectolax) / `12306` 任选 2–3 个落地 + `SERVERS.md`（每 server 一行 + 3 个示例 prompt）。轮值穿插 NutriCore 画像字段、MediRead joint_analysis 起步。
+
+---
