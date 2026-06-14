@@ -20,7 +20,9 @@ from reportlab.platypus import (
 )
 
 from app.agents.risk_screening.schemas import NRSReport
-from app.core.storage import upload_object
+
+# 注:`app.core.storage`(MinIO)在 archive_report 内部懒导入 —— render_pdf 只依赖
+# ReportLab,解耦后纯 PDF 渲染可在不装 minio 的轻量环境(CI)单测。
 
 # 注册中文字体（CID 字体不需要额外文件）
 _FONT_REGISTERED = False
@@ -110,6 +112,8 @@ def render_pdf(report: NRSReport) -> bytes:
 
 
 async def archive_report(report: NRSReport) -> str:
+    from app.core.storage import upload_object
+
     pdf_bytes = render_pdf(report)
     ts = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     object_key = f"reports/risk/{report.user_id}/{ts}.pdf"
