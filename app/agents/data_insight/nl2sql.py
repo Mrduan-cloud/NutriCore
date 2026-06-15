@@ -164,6 +164,18 @@ def assert_safe_sql(sql: str, user_id: str) -> str:
     return raw
 
 
+# 模型常把 SQL 包进 ```sql … ``` 代码块（有时还带前言）。只 strip 反引号会残留 `sql\n` 语言标记
+# 让 gate 误判，故先抽取围栏内容。无围栏则原样返回，再兜底去掉单反引号/空白。
+_CODE_FENCE = re.compile(r"```[A-Za-z0-9_+-]*\s*(.*?)\s*```", re.DOTALL)
+
+
+def _unwrap_sql(raw: str) -> str:
+    """剥掉 markdown 代码围栏 + 语言标记，取出纯 SQL。"""
+    m = _CODE_FENCE.search(raw)
+    text = m.group(1) if m else raw
+    return text.strip().strip("`").strip()
+
+
 async def generate_sql(question: str, user_id: str) -> str:
     """仅做「LLM 直出 SQL」这一步 —— 不过 gate、不连库。
 
@@ -175,7 +187,7 @@ async def generate_sql(question: str, user_id: str) -> str:
         temperature=0.0,
         max_tokens=400,
     )
-    return raw.strip().strip("`").strip()
+    return _unwrap_sql(raw)
 
 
 async def nl2sql(question: str, user_id: str) -> dict[str, Any]:

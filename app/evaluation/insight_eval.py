@@ -88,6 +88,10 @@ def end_to_end_sql_accuracy(cases: list[SqlGenCase], generator: SqlGenerator) ->
 
     任一不满足即记 0：gate 不过（不安全 / 越权）算错；安全但答错了表或漏了关键字段也算错。
     不连库——语义正确性用「期望表/列 ⊆ SQL 标识符」近似（gate 已剔除非白名单标识符）。
+
+    **只吞 `ValueError`**（`assert_safe_sql` 对「模型直出不安全 SQL」的判错）——那是一次合理的 miss。
+    其它异常（generator 连不上后端 / 超时等）**故意向上抛**：让调用方（如 dashboard live）能区分
+    「模型答错」与「后端不可用」并回落，而不是把连不上静默成 0.0（否则看板分数会骗人）。
     """
     if not cases:
         return 0.0
@@ -95,8 +99,8 @@ def end_to_end_sql_accuracy(cases: list[SqlGenCase], generator: SqlGenerator) ->
     for c in cases:
         try:
             safe_sql = assert_safe_sql(generator(c.question, c.user_id), c.user_id)
-        except Exception:
-            continue  # 生成的 SQL 不安全 / 不合法 → 端到端失败
+        except ValueError:
+            continue  # 模型直出不安全 / 不合法 SQL → 端到端失败（合理 miss）
         idents = _identifiers(safe_sql)
         if c.expected_tables <= idents and c.expected_fields <= idents:
             ok += 1

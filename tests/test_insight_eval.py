@@ -5,6 +5,8 @@
 - 但指标要**能识别退化**：削弱安全守卫的判定 → sql_accuracy 掉；坏数据 → chart 失败；
   空 / 干瘪文本 → 可读性低。
 """
+import pytest
+
 from app.evaluation.insight_eval import (
     GOLD_CHART_CASES,
     GOLD_INSIGHT_TEXTS,
@@ -122,6 +124,18 @@ def test_e2e_counts_unsafe_as_failure():
         return "SELECT weight_kg FROM vitals"  # 缺 user_id 强制过滤
 
     assert end_to_end_sql_accuracy([case], unsafe) == 0.0
+
+
+def test_e2e_propagates_backend_error_not_silent_zero():
+    """（/debug #1）后端连不上等非 ValueError **向上抛**，不静默成 0.0——
+    让 dashboard live 能区分「模型答错」与「后端不可用」并回落，看板分数不骗人。"""
+    case = GOLD_SQL_GEN_CASES[0]
+
+    def backend_down(q, u):
+        raise ConnectionError("LLM backend unreachable")
+
+    with pytest.raises(ConnectionError):
+        end_to_end_sql_accuracy([case], backend_down)
 
 
 def test_e2e_partial_credit_across_cases():

@@ -9,7 +9,7 @@ data_insight 让 LLM 直出 SQL,唯一的安全边界就是 `assert_safe_sql`。
 """
 import pytest
 
-from app.agents.data_insight.nl2sql import assert_safe_sql
+from app.agents.data_insight.nl2sql import _unwrap_sql, assert_safe_sql
 
 # ─────────────────────────── Layer 1:SELECT-only ───────────────────────────
 
@@ -151,3 +151,26 @@ def test_reject_or_filter_bypass():
 ])
 def test_accept_user_id_spacing_and_quote_variants(sql):
     assert assert_safe_sql(sql, "u1") == sql
+
+
+# ──────────── 输出清洗 _unwrap_sql:剥 markdown 代码围栏（回归 /debug #2）────────────
+# 模型把 SQL 包进 ```sql … ``` 时，旧的 strip("`") 会残留 `sql\n` 语言标记让 gate 误判。
+
+
+def test_unwrap_fenced_with_language_tag_passes_gate():
+    """```sql 围栏剥净后能过 gate（修复前残留 'sql\\n' 前缀 → 被判非 SELECT）。"""
+    raw = "```sql\nSELECT date, protein FROM daily_intake WHERE user_id = 'u1'\n```"
+    cleaned = _unwrap_sql(raw)
+    assert cleaned.startswith("SELECT")
+    assert assert_safe_sql(cleaned, "u1") == cleaned
+
+
+@pytest.mark.parametrize("raw,expected", [
+    ("SELECT 1 FROM vitals WHERE user_id='u1'", "SELECT 1 FROM vitals WHERE user_id='u1'"),  # 纯净
+    ("`SELECT 1`", "SELECT 1"),                                    # 单反引号
+    ("```\nSELECT 1\n```", "SELECT 1"),                            # 无语言标记围栏
+    ("```sql\nSELECT 1\n```", "SELECT 1"),                         # 带语言标记
+    ("这是查询：\n```sql\nSELECT 1\n```", "SELECT 1"),             # 围栏前有前言
+])
+def test_unwrap_variants(raw, expected):
+    assert _unwrap_sql(raw) == expected

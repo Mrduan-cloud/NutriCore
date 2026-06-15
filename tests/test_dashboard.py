@@ -48,6 +48,22 @@ def test_dashboard_live_falls_back_when_unavailable(monkeypatch):
     assert dash["InsightMetric"]["sql_accuracy"] == 1.0   # 离线维度照常
 
 
+def test_dashboard_live_falls_back_on_runtime_backend_error(monkeypatch, capsys):
+    """（/debug #1）generator 在**调用时**抛（后端连不上）→ dashboard 走显式回落 + stderr 标注，
+    而非把 e2e 静默成 0.0。recall 用空命中工作桩，隔离出 e2e 这一维。"""
+    def raising_generator_factory():
+        def gen(question, user_id):
+            raise ConnectionError("LLM down")
+        return gen
+
+    monkeypatch.setattr(dash_mod, "_live_recall_retriever", lambda: (lambda q: []))
+    monkeypatch.setattr(dash_mod, "_live_sql_generator", raising_generator_factory)
+    dash = run_dashboard_live()
+    assert "e2e_sql 回落离线" in capsys.readouterr().err  # 证明走的是显式回落，不是静默 0.0
+    assert dash["InsightMetric"]["e2e_sql_accuracy"] == 0.0
+    assert dash["InsightMetric"]["sql_accuracy"] == 1.0   # 离线维度照常
+
+
 def test_dashboard_live_uses_injected_real_components(monkeypatch):
     """注入「真组件」桩：retriever 命中 gold、generator 回放 ideal_sql → 看板显示真值。"""
     relevant = {q: docs for q, docs in LIVE_RECALL_GOLD}
