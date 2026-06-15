@@ -164,14 +164,22 @@ def assert_safe_sql(sql: str, user_id: str) -> str:
     return raw
 
 
-async def nl2sql(question: str, user_id: str) -> dict[str, Any]:
+async def generate_sql(question: str, user_id: str) -> str:
+    """仅做「LLM 直出 SQL」这一步 —— 不过 gate、不连库。
+
+    抽成独立入口是为了让端到端 NL2SQL 评测（`app.evaluation.insight_eval`）能注入它跑真实
+    生成、只校验「生成对不对」，而不必拉起 MySQL 执行。`nl2sql` 在其之上叠 gate + 执行。
+    """
     raw = await chat_complete(
         _SQL_PROMPT.format(schema=SCHEMA_FOR_LLM.strip(), user_id=user_id, question=question),
         temperature=0.0,
         max_tokens=400,
     )
-    sql = raw.strip().strip("`").strip()
-    sql = assert_safe_sql(sql, user_id)
+    return raw.strip().strip("`").strip()
+
+
+async def nl2sql(question: str, user_id: str) -> dict[str, Any]:
+    sql = assert_safe_sql(await generate_sql(question, user_id), user_id)
     rows = await _run_select(sql)
     return {"sql": sql, "rows": rows}
 

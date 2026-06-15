@@ -25,9 +25,11 @@ class PlanMetric:
 
 @dataclass
 class InsightMetric:
-    sql_accuracy: float
+    sql_accuracy: float            # 安全收口 gate 判定准确率（不依赖 LLM）
     chart_success_rate: float
     interpretation_readability: float
+    e2e_sql_accuracy: float = 0.0  # LLM 端到端直出 SQL 的准确率（过 gate ∧ 命中期望表/列）；
+    #                                需真实/注入 generator，离线 CI 不评 → 默认 0.0
 
 
 def aggregate_dashboard(*metrics) -> dict:

@@ -37,9 +37,14 @@ class Settings(BaseSettings):
     auth_max_failed_attempts: int = 5
     auth_lockout_minutes: int = 15
 
-    # ============ LLM (vLLM 私有化) ============
-    # 默认：2× RTX 4090 + Qwen2.5-32B-Instruct-AWQ + Tensor Parallel(TP=2)
-    # 启动命令见 docs/DEPLOYMENT.md §2.5
+    # ============ LLM (私有化优先，OpenAI 兼容) ============
+    # 三档后端**同一套 OpenAI 兼容协议**，切换只改 base_url / model / api_key（业务代码零改动）：
+    #   ① vLLM（生产/GPU 私有化，默认）：compose `vllm` service，2× RTX 4090 + Qwen2.5-32B-AWQ + TP=2
+    #      —— `docker compose --profile gpu up`，启动细节见 docs/DEPLOYMENT.md §2.5
+    #   ② Ollama（本地/CPU 开发，无显卡可跑）：host Ollama 走 http://host.docker.internal:11434/v1
+    #      或 compose `ollama` service（`--profile local-llm`）；模型如 qwen2.5:3b-instruct
+    #   ③ 云 API 托底（DeepSeek 等）：base_url=https://api.deepseek.com/v1, model=deepseek-chat
+    # 默认值对齐 compose 内网 `vllm` service；本地开发在 .env 覆盖为 Ollama（见 .env.example）。
     llm_base_url: str = "http://vllm:8001/v1"
     llm_api_key: str = "EMPTY"
     llm_model: str = "Qwen/Qwen2.5-32B-Instruct-AWQ"
