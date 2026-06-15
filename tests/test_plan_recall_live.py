@@ -16,22 +16,10 @@ import asyncio
 
 import pytest
 
-from app.evaluation.plan_eval import recall_at_k
+from app.evaluation.plan_eval import LIVE_RECALL_GOLD, recall_at_k
 
-_FOOD = "food_composition_excerpt"      # 具体食材成分数值
-_GUIDE = "dietary_guide_2022_excerpt"   # 膳食准则 / 推荐量 / 慢病关注
-
-# gold:(查询, 应命中的文档集合)。查询贴近真实用户问法。
-GOLD: list[tuple[str, set[str]]] = [
-    ("燕麦的能量和升糖指数是多少", {_FOOD}),
-    ("鸡胸肉的蛋白质含量", {_FOOD}),
-    ("西兰花含多少维生素C", {_FOOD}),
-    ("北豆腐的钙含量高吗", {_FOOD}),
-    ("高血压患者每天盐摄入上限是多少", {_GUIDE}),
-    ("成人每日蔬菜推荐摄入量", {_GUIDE}),
-    ("孕妇能量需求要增加多少", {_GUIDE}),
-    ("高血脂应控制饱和脂肪占总能量的比例", {_GUIDE}),
-]
+# gold（查询 → 应命中文档）与看板 live 路径共用，定义在 plan_eval.LIVE_RECALL_GOLD。
+GOLD = LIVE_RECALL_GOLD
 
 
 def _guide_ready() -> bool:

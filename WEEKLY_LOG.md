@@ -73,3 +73,39 @@
 主项目切到 **MemoMate**：`hackernews` / `wechat_mp`(httpx + selectolax) / `12306` 任选 2–3 个落地 + `SERVERS.md`（每 server 一行 + 3 个示例 prompt）。轮值穿插 NutriCore 画像字段、MediRead joint_analysis 起步。
 
 ---
+
+## W09 · 2026-07-20 → 2026-07-26 · 主项目（NutriCore Eval 看板接真实栈 + 私有化 LLM 落地）
+
+> 对应简历：「带评测体系 + 私有化 LLM 部署」。本周把 `dashboard.py` 注释里欠了一整轮的两笔——**真实 recall@k / 端到端 NL2SQL 生成准确率**——兑现接上真实栈；并让「私有化 LLM」声明从「只有 vLLM 文档」变成「本地 Ollama 实证可跑」。
+> 完成驱动，单 session 单 PR（`feat/w09-eval-live-private-llm`）。本节按 plan 标称日期归档。
+
+### 这周做了什么
+
+| 项目 · PR | 内容 |
+|---|---|
+| NutriCore（B1）端到端 NL2SQL 评测 | `insight_eval` 新增 `e2e_sql_accuracy`：注入式 `end_to_end_sql_accuracy(cases, generator)`——「LLM 直出 SQL 过安全 gate ∧ 命中期望表/列」。为此把 `nl2sql` 的「生成」与「执行」解耦出 `generate_sql`，评测只需 LLM、不拉 MySQL；语义正确性用「期望表/列 ⊆ SQL 标识符」近似（gate 已剔非白名单标识符）。CI 用 `replay_generator` stub 验打分逻辑（命中/答错表/漏字段/越权 4 类退化都能识别） |
+| NutriCore（B2）看板 live 路径 | `dashboard.py` 加 `run_dashboard_live()` + `--live`：recall 接真实 `retrieve_plan_evidence`、e2e 接真实 `generate_sql`，**各维度独立兜底**（真实依赖 import 失败或运行时连不上 → 回落该维度离线值，不崩）。`recall@k` 的 live gold 提到 `plan_eval.LIVE_RECALL_GOLD`，与既有 `test_plan_recall_live` 共用（DRY） |
+| NutriCore（A1/A3）私有化 LLM 落地 | config LLM 段重写为**三档同走 OpenAI 兼容**（vLLM GPU 生产 / Ollama CPU 本地 / 云 API 托底，切换只改 base_url/model/key）；docker-compose 补 `vllm`(`profiles:[gpu]`) + `ollama`(`profiles:[local-llm]`) service，默认 `up` 不启动；`.env.example` / DEPLOYMENT §2.5 口径统一 |
+| NutriCore（A2/B1-live）实证验证 | 本地 Ollama 拉 `qwen2.5:3b-instruct`，新增 `test_insight_nl2sql_live`（默认 skip，不进 CI）：① 私有路径 smoke：`chat_complete` → 本地 Ollama → 非空；② 端到端：真实模型直出 SQL 的 e2e 准确率。**实测 e2e_sql_accuracy = 1.000（gold 4 例全对）** |
+
+### 现状
+
+- ✅ **Eval 看板注释欠的两笔已兑现**：洞察维新增 `e2e_sql_accuracy`；dashboard 离线确定性部分（screening 全维 / plan compliance·citation / insight gate·chart·可读性）进 CI，`--live` 接真实栈（recall→真实检索、e2e→真实 LLM），各自不可用自动回落。
+- ✅ **私有化 LLM 三档统一且本地档已实证**：vLLM(GPU) / Ollama(CPU) / 云托底同走 OpenAI 兼容；Ollama `qwen2.5:3b-instruct` 本机真跑、端到端 NL2SQL=1.00。compose 两档 `docker compose config` 静态校验过。
+- ✅ CI-light 190 passed（除本机缺 `reportlab` 的 `test_screening_report` 收集报错，与本周改动无关、CI 有依赖）+ ruff clean。
+- 🟡 **vLLM GPU 推理本机未实证**（无独显，跑不了真实推理）——compose/docs 已诚实标注「仅静态校验」，待有 GPU 环境复验。延续 W08 对 12306 的判断：不假装验证了做不到实证的东西。
+- 🟡 老跟进仍挂：medical_kb 上 Cross-Encoder 负增益待 KB 规模化复评（W04 起的 background task）。W02/W06 retro 仍缺（非阻塞）。
+
+### 收获
+
+1. **起手三连查 ≫ 照记忆重建**：plan 记「`metrics.py` 仍骨架、无 vLLM」，实查发现 eval 三维评测器 + dashboard 已成熟、vLLM client/config/docs 全在——真缺口只是 dashboard 注释欠的两笔 + compose 没 vllm service。**先查现状再定增量**，省下整块盲目重建。
+2. **「私有化」要落到能实证的后端**：vLLM 只能上 GPU 服务器，本机无显卡——但代码里早写了 Ollama 作 CPU 开发档却从没验证过。把这条「已声明未验证」的路径做 real + 真跑，比再堆一份跑不起来的 vLLM compose 更有价值。延续 W04「诚实负结果」、W08「不做无法实证的东西」。
+3. **解耦让重能力进 CI（再一次）**：把 `nl2sql` 的生成与执行拆开，端到端 SQL 评测脱离 MySQL；语义正确性不连库、用 gate 后的标识符包含判定近似。和 W05 `render_pdf`/MinIO 拆分、评测分层同一套打法。
+4. **注入式评测的双跑法成体系**：recall@k（W05）、e2e NL2SQL（本周）都是「CI 用确定性 stub 验打分逻辑 + live 用真实组件拿真数字」。同一指标既守回归、又能在真栈上出真实表现，互不阻塞。
+5. **网络坑诚实记**：Ollama 拉 3b 反复 TLS handshake timeout（连 Cloudflare R2 太慢），靠断点续传重试循环（~60 次）才下完 1.9GB。本环境拉模型/镜像要预留重试，别指望一次成。
+
+### 下周预告 · W10（07/27–08/02）· 主项目 MediRead
+
+主项目切回 **MediRead**（停滞仓轮到主力周）：起手三连查后定增量，候选含 `joint_analysis` 深化 / 「接地但跨面板错引」follow-up（仅当 medical_kb 已规模化才动，否则按既定判断继续延后、别在 6 文档微 KB 盲调）。轮值穿插 NutriCore / MemoMate 小项。
+
+---

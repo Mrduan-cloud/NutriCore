@@ -108,6 +108,10 @@ docker compose exec api python -m scripts.demo
 
 本工程通过 OpenAI 兼容协议调用。生产默认是 **vLLM + Qwen2.5-32B-Instruct-AWQ + 2× RTX 4090 + TP=2**，开发机按硬件灵活降级：
 
+> **两档已收进 docker-compose（按 profile 启用，默认 `up` 不启动）**：
+> `docker compose --profile gpu up -d`（vLLM，需独显）/ `docker compose --profile local-llm up -d`（Ollama，CPU 可跑）。
+> 下面的「手动起服务」写法仍然有效，二选一即可。
+
 **① 生产同款（有 2× RTX 4090 24G 或更高）— vLLM + 32B AWQ + TP=2**
 ```bash
 pip install vllm
@@ -130,17 +134,18 @@ python -m vllm.entrypoints.openai.api_server \
 - **Tensor Parallel TP=2**：vLLM 自动把权重切到 2 张卡，前向跨卡 all-reduce
 - **显存预算**：单卡 24GB ≈ 10GB(模型分片) + 12GB(KV cache) + 2GB(余量)
 
-**② 没有 4090（开发机常态）— Ollama 跑 7B 凑合用**
+**② 没有 GPU（开发机常态）— Ollama 跑小模型（CPU 可跑）**
 ```bash
-# https://ollama.com/download
-ollama pull qwen2.5:7b-instruct
+# https://ollama.com/download —— 宿主直跑，或用 compose：docker compose --profile local-llm up -d
+ollama pull qwen2.5:3b-instruct    # 实测端到端 NL2SQL 准确率=1.00（gold 4 例）；要更稳可用 7b
 ollama serve
 
-# .env 末尾的注释块取消注释：
+# .env 末尾的注释块取消注释（compose 档把 host.docker.internal 换成 ollama）：
 # LLM_BASE_URL=http://host.docker.internal:11434/v1
 # LLM_API_KEY=ollama
-# LLM_MODEL=qwen2.5:7b-instruct
+# LLM_MODEL=qwen2.5:3b-instruct
 ```
+> 端到端 NL2SQL 评测正是接这条本地私有路径实证的（`python -m app.evaluation.dashboard --live`）。
 
 **③ 单 4090 / 16GB 显卡 — vLLM + 14B AWQ（折中）**
 ```bash

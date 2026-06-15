@@ -135,6 +135,22 @@ GOLD_PLAN_CASES: list[PlanCase] = [
     PlanCase(_seven_day_plan("demo-002", 2200, "food_composition_excerpt:3"), _EVIDENCE),
 ]
 
+# —— recall@k 真实召回 gold（查询 → 应命中文档）——
+# 接真实 `retrieve_plan_evidence` 时用（看板 live 路径 + tests/test_plan_recall_live.py 共用，DRY）。
+# doc_id 取自种子 KB：app/data/kb/{food_composition_excerpt,dietary_guide_2022_excerpt}.md
+_FOOD = "food_composition_excerpt"     # 具体食材成分数值
+_GUIDE = "dietary_guide_2022_excerpt"  # 膳食准则 / 推荐量 / 慢病关注
+LIVE_RECALL_GOLD: list[tuple[str, set[str]]] = [
+    ("燕麦的能量和升糖指数是多少", {_FOOD}),
+    ("鸡胸肉的蛋白质含量", {_FOOD}),
+    ("西兰花含多少维生素C", {_FOOD}),
+    ("北豆腐的钙含量高吗", {_FOOD}),
+    ("高血压患者每天盐摄入上限是多少", {_GUIDE}),
+    ("成人每日蔬菜推荐摄入量", {_GUIDE}),
+    ("孕妇能量需求要增加多少", {_GUIDE}),
+    ("高血脂应控制饱和脂肪占总能量的比例", {_GUIDE}),
+]
+
 
 def main() -> None:
     import json

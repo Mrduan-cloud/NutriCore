@@ -110,6 +110,59 @@ services:
       timeout: 5s
       retries: 10
 
+  # ---------------- 私有化 LLM（按 profile 二选一，默认 up 不启动）----------------
+  # ① GPU 生产档：vLLM 跑 Qwen2.5-32B-AWQ（需 NVIDIA GPU + nvidia-container-toolkit）
+  #     docker compose --profile gpu up -d
+  #   ⚠️ 本档需独显，未在无 GPU 开发机实证；CPU 机请用下方 Ollama 档或 .env 指云 API。
+  vllm:
+    image: vllm/vllm-openai:v0.6.3
+    container_name: nutricore-vllm
+    profiles: ["gpu"]
+    <<: *default-restart
+    command: >
+      --model Qwen/Qwen2.5-32B-Instruct-AWQ
+      --quantization awq
+      --tensor-parallel-size 2
+      --served-model-name Qwen/Qwen2.5-32B-Instruct-AWQ
+      --port 8001
+    environment:
+      HUGGING_FACE_HUB_TOKEN: ${HF_TOKEN:-}
+    ports:
+      - "8001:8001"
+    volumes:
+      - hf_cache:/root/.cache/huggingface
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: ["gpu"]
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8001/health"]
+      interval: 20s
+      timeout: 5s
+      retries: 10
+
+  # ② CPU 本地档：Ollama 跑小模型（无显卡开发机用）
+  #     docker compose --profile local-llm up -d
+  #     docker compose exec ollama ollama pull qwen2.5:3b-instruct
+  #   并在 .env 覆盖：LLM_BASE_URL=http://ollama:11434/v1 · LLM_MODEL=qwen2.5:3b-instruct · LLM_API_KEY=ollama
+  ollama:
+    image: ollama/ollama:0.3.14
+    container_name: nutricore-ollama
+    profiles: ["local-llm"]
+    <<: *default-restart
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
   # ---------------- 应用 ----------------
   api:
     build: .
@@ -131,7 +184,8 @@ services:
       REDIS_URL: redis://redis:6379/0
       MILVUS_HOST: milvus
       MINIO_ENDPOINT: minio:9000
-      LLM_BASE_URL: ${LLM_BASE_URL:-http://host.docker.internal:8001/v1}
+      # 默认指内网 vllm service（--profile gpu）；本地 Ollama / 云 API 在 .env 覆盖 LLM_BASE_URL
+      LLM_BASE_URL: ${LLM_BASE_URL:-http://vllm:8001/v1}
     ports:
       - "8000:8000"
     volumes:
@@ -145,3 +199,5 @@ volumes:
   milvus_data:
   etcd_data:
   model_cache:
+  hf_cache:       # vLLM 权重缓存（--profile gpu）
+  ollama_data:    # Ollama 模型缓存（--profile local-llm）

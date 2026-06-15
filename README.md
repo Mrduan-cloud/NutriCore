@@ -226,11 +226,23 @@ LLM 直出的 SQL 一律先过 `assert_safe_sql` 三层收口，确保用户**�
 
 ## 评测指标 | Evaluation
 
-| 模块             | 指标                                   |
-| ---------------- | -------------------------------------- |
-| 营养风险筛查     | 评分准确率 · 报告完整度 · 复测一致性   |
-| 个性化营养方案   | 召回率（Top-K）· 引用命中率 · 方案合规率 |
-| 健康数据洞察     | SQL 准确率 · 图表生成成功率 · 解读可读性 |
+| 模块             | 指标                                                       |
+| ---------------- | ---------------------------------------------------------- |
+| 营养风险筛查     | 评分准确率 · 报告完整度 · 复测一致性                       |
+| 个性化营养方案   | 召回率（Top-K）· 引用命中率 · 方案合规率                   |
+| 健康数据洞察     | SQL 安全收口准确率 · **端到端 NL2SQL 生成准确率** · 图表生成成功率 · 解读可读性 |
+
+跑评测看板（三维一次汇总成 JSON）：
+
+```bash
+python -m app.evaluation.dashboard          # 离线：确定性 + 注入 stub（已进 CI）
+python -m app.evaluation.dashboard --live    # 接真实栈：recall@k 走真实检索、端到端 NL2SQL 走真实 LLM
+```
+
+- **离线确定性部分纳入 CI**：筛查全维、方案 compliance/citation、洞察 gate/chart/可读性 —— 无需 LLM/DB/Milvus。
+- **端到端部分**注入式：`recall@k` 接真实 `retrieve_plan_evidence`（需 Milvus），端到端 NL2SQL 接真实
+  `generate_sql`（私有化 LLM：本地 Ollama / GPU vLLM / 云 API 任一）。本地 Ollama `qwen2.5:3b-instruct`
+  实测端到端 NL2SQL 准确率 = 1.00（gold 4 例）。`--live` 下某真实依赖不可用时该维度自动回落离线值。
 
 ---
 
