@@ -30,6 +30,9 @@ checkpoints/
 *.log
 .cache/
 
+# 离线构建预取的 wheel(只该被 builder 阶段显式 COPY 到 /wheels,不要随 COPY . 进运行时层)
+.wheels/
+
 # OS
 .DS_Store
 Thumbs.db
