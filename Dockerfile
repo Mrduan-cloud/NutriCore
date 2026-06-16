@@ -13,7 +13,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
-RUN pip install --prefix=/install -r requirements.txt
+# CPU-only PyTorch (exact +cpu 钉版,取自官方 CPU index)与 requirements 在同一 pip pass
+# 安装,使 sentence-transformers / FlagEmbedding 的传递依赖 torch 解析到 CPU 构建。
+# +cpu 构建不依赖 nvidia-*/triton,直接砍掉约 3.4GB 在 CPU 部署上纯属死重的 GPU 库
+# (W12 镜像瘦身;本项目私有化定位为 CPU 部署)。
+RUN pip install --prefix=/install --extra-index-url https://download.pytorch.org/whl/cpu \
+    --retries 10 --timeout 120 torch==2.12.0+cpu -r requirements.txt
+# 砍掉 torch 的 C++ 头文件与测试夹具:推理运行时永不需要,约省 144MB。
+RUN rm -rf /install/lib/python3.11/site-packages/torch/test \
+           /install/lib/python3.11/site-packages/torch/include
 
 
 FROM python:3.11-slim AS runtime
