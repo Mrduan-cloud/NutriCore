@@ -52,6 +52,19 @@ class Settings(BaseSettings):
     llm_max_retries: int = 3
     llm_temperature: float = 0.3
 
+    # ---- 多 LLM 适配层 (v1.1.0) ----
+    # llm_provider="openai":走上面 llm_* 的 OpenAI 兼容协议(vLLM/Ollama/DeepSeek/Qwen/OpenAI)
+    # llm_provider="anthropic":走下面 anthropic_* 的原生 Anthropic Messages API
+    #   —— Anthropic 是唯一非 OpenAI 兼容的一档;现代 Claude(Opus 4.8/4.7)拒绝 temperature,
+    #      适配层不透传、靠 prompt 引导。需 `pip install anthropic`(已在 requirements)。
+    llm_provider: str = "openai"
+    anthropic_api_key: str = ""
+    anthropic_model: str = "claude-opus-4-8"
+    anthropic_base_url: str = ""  # 留空=SDK 默认 api.anthropic.com;设值=自建代理/网关
+    # Anthropic 必填 max_tokens;调用未指定时用此默认。给 8192 留头(meal_plan 的
+    # 7 天 JSON 不显式传 max_tokens,4096 恐截断;非流式安全上限内)。
+    anthropic_max_tokens: int = 8192
+
     # ============ Embedding & Reranker ============
     embedding_model: str = "BAAI/bge-large-zh-v1.5"
     reranker_model: str = "BAAI/bge-reranker-large"
